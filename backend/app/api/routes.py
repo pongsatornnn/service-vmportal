@@ -394,7 +394,7 @@ def check(user=Depends(admin), db: Session = Depends(get_db)):
 def quota(
     user_id: PortalID,
     data: Quota,
-    user=Depends(primary_admin),
+    user=Depends(admin),
     db: Session = Depends(get_db),
 ):
     repo = PortalRepository(db)
@@ -415,9 +415,7 @@ def quota(
 
 
 @router.post("/admin/users/quota/bulk")
-def bulk_quota(
-    data: BulkQuota, user=Depends(primary_admin), db: Session = Depends(get_db)
-):
+def bulk_quota(data: BulkQuota, user=Depends(admin), db: Session = Depends(get_db)):
     repo = PortalRepository(db)
     values = data.model_dump(exclude={"user_ids"})
     targets = []
@@ -551,7 +549,7 @@ def retry_deletion(
 def resume_clone(
     job_id: PortalID,
     data: RetryDelete,
-    user=Depends(primary_admin),
+    user=Depends(admin),
     db: Session = Depends(get_db),
 ):
     return PortalService(db).resume_provision(user, job_id, data)
@@ -561,7 +559,7 @@ def resume_clone(
 def close_job(
     job_id: PortalID,
     data: CloseJob,
-    user=Depends(primary_admin),
+    user=Depends(admin),
     db: Session = Depends(get_db),
 ):
     return PortalService(db).close_job(user, job_id, data)
@@ -670,7 +668,7 @@ def get_quota_defaults(user=Depends(admin), db: Session = Depends(get_db)):
 @router.post("/admin/quota-defaults")
 def set_quota_defaults(
     data: QuotaDefaultsUpdate,
-    user=Depends(primary_admin),
+    user=Depends(admin),
     db: Session = Depends(get_db),
 ):
     from app.services.quota_defaults import QuotaDefaultsService

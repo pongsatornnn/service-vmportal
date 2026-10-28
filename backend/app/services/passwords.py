@@ -42,8 +42,8 @@ class PasswordService:
         return {"ok": True, "sign_in_required": True}
 
     def issue(self, actor, user_id, data):
-        if not manages_all(actor):
-            raise HTTPException(403, "Primary administrator required")
+        if actor.role != "admin":
+            raise HTTPException(403, "Admin required")
         if not passwords.verify(
             data.admin_password.get_secret_value(), actor.password_hash
         ):
@@ -51,8 +51,11 @@ class PasswordService:
         target = self.repo.lock_user(user_id)
         if not target or target.status != "approved":
             raise HTTPException(404, "Approved account not found")
-        # A recovery code takes over the account: only the top admin may issue
-        # one for a primary admin, and nobody for the top admin (use the server CLI).
+        # A recovery code takes over the account: any admin may issue one for a
+        # user, a primary admin for an admin, only the top admin for a primary
+        # admin, and nobody for the top admin (use the server CLI).
+        if target.role == "admin" and not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         if target.top_admin or (target.primary_admin and not actor.top_admin):
             raise HTTPException(403, "Top administrator required")
         self.invalidate_codes(target.id)

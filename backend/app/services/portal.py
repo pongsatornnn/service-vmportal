@@ -374,8 +374,8 @@ class PortalService:
     def resume_clone(self, actor, job_id, confirmation):
         from app.adapters.proxmox import ProxmoxError, make_adapter
 
-        if not manages_all(actor):
-            raise HTTPException(403, "Primary administrator required")
+        if actor.role != "admin":
+            raise HTTPException(403, "Admin required")
         cfg = ConfigurationService(self.db).runtime(lock=True, require_enabled=True)
         job = self.db.scalar(select(Job).where(Job.id == job_id).with_for_update())
         if not job:
@@ -467,8 +467,8 @@ class PortalService:
     def resume_provision(self, actor, job_id, confirmation):
         from app.adapters.proxmox import GIB, ProxmoxError, make_adapter
 
-        if not manages_all(actor):
-            raise HTTPException(403, "Primary administrator required")
+        if actor.role != "admin":
+            raise HTTPException(403, "Admin required")
         job = self.db.get(Job, job_id)
         if job and job.checkpoint in CLONE_RESUME_CHECKPOINTS:
             return self.resume_clone(actor, job_id, confirmation)
@@ -533,8 +533,8 @@ class PortalService:
         return job
 
     def close_job(self, actor, job_id, data):
-        if not manages_all(actor):
-            raise HTTPException(403, "Primary administrator required")
+        if actor.role != "admin":
+            raise HTTPException(403, "Admin required")
         ConfigurationService(self.db).runtime(lock=True, require_enabled=True)
         job = self.db.scalar(select(Job).where(Job.id == job_id).with_for_update())
         if not job:

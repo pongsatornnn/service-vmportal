@@ -38,7 +38,7 @@ def recover_password(data: RedeemRecovery, db: Session = Depends(get_db)):
 def issue_recovery(
     user_id: PortalID,
     data: IssueRecovery,
-    user=Depends(primary_admin),
+    user=Depends(admin),
     db: Session = Depends(get_db),
 ):
     return PasswordService(db).issue(user, user_id, data)
