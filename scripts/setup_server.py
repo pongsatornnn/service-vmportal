@@ -114,55 +114,25 @@ def valid_host(value):
         return value.lower()
 
 
-def valid_path(value):
-    path = Path(value)
-    if not path.is_absolute() or not re.fullmatch(r"/[A-Za-z0-9_./-]+", value):
+def valid_location(path=None):
+    """The cloned project is the installation; check it is a sensible place."""
+    path = Path(path or SOURCE).resolve()
+    if not re.fullmatch(r"/[A-Za-z0-9_./-]+", str(path)):
         raise SetupError(
-            "The directory must be an absolute path using only letters, digits, /, _, - or dots, with no spaces."
-        )
-    path = path.resolve()
-    forbidden = {
-        Path(p)
-        for p in (
-            "/",
-            "/opt",
-            "/srv",
-            "/var",
-            "/var/lib",
-            "/usr",
-            "/etc",
-            "/home",
-            "/root",
-            str(CONFIG),
-            str(STATE),
-        )
-    }
-    if (
-        path in forbidden
-        or path.is_relative_to(Path("/etc"))
-        or path.is_relative_to(Path("/usr"))
-    ):
-        raise SetupError(
-            "Choose a directory dedicated to the portal, for example /opt/vmportal."
+            f"The project folder {path} must use only letters, digits, /, _, - or dots, with no spaces. Clone it somewhere like /opt/service-vmportal."
         )
     if any(
         path.is_relative_to(Path(base))
         for base in ("/tmp", "/var/tmp", "/run", "/dev", "/proc", "/sys")
     ):
         raise SetupError(
-            "Choose a permanent directory, for example /opt/vmportal or /srv/vmportal."
+            f"{path} is temporary. Clone the project to a permanent place such as /opt/service-vmportal."
         )
-    if SOURCE == path or path.is_relative_to(SOURCE):
+    if path in {
+        Path(p) for p in ("/", "/opt", "/srv", "/var", "/usr", "/etc", "/home", "/root")
+    }:
         raise SetupError(
-            "The web directory must be outside the cloned source folder, for example /opt/vmportal."
-        )
-    if (
-        path.exists()
-        and any(path.iterdir())
-        and not (path / ".vmportal-install").is_file()
-    ):
-        raise SetupError(
-            "That directory already contains other files. Use an empty directory or an existing portal installation."
+            "Clone the project into its own folder, such as /opt/service-vmportal."
         )
     return str(path)
 
@@ -365,14 +335,17 @@ def portal_url(host, port, base=""):
     return f"https://{host}:{port}{base}/"
 
 
-def web_root(path):
-    """Published website files; the API serves them from inside the web directory."""
-    return Path(path) / "www"
+def web_root(path=None):
+    """Published website files, kept apart from the clone so updates swap in cleanly."""
+    return STATE / "www"
 
 
 def collect(old, old_env, action="install"):
-    # Application files stay in one fixed place; only the address is configurable.
-    path = old.get("path") or valid_path("/opt/vmportal")
+    # The portal runs from the folder the project was cloned into.
+    path = valid_location()
+    if action == "settings" and old.get("path") and path != old["path"]:
+        print(f"The portal will now run from {path}, so it is built there too.")
+        action = "update"
     base = valid_base_path(
         ask(
             "URL path users open (for example /vmportal, or / for the site root)",
@@ -435,7 +408,7 @@ def collect(old, old_env, action="install"):
         env["REDIS_URL"] = redis_url.set(port=redis_port).render_as_string(
             hide_password=False
         )
-    env["PORTAL_STATIC_DIR"] = str(web_root(path))
+    env["PORTAL_STATIC_DIR"] = str(web_root())
     env["PORTAL_BASE_PATH"] = base
     return dict(
         action=action,
@@ -475,6 +448,14 @@ def describe_changes(old, old_env, plan):
                 "Application",
                 "a new version is built from this folder",
                 "Database migrations run and all portal services restart (about a minute of downtime).",
+            )
+        )
+    if old.get("path") and plan["path"] != old["path"]:
+        changes.append(
+            (
+                "Location",
+                f"{old['path']} -> {plan['path']}",
+                f"Services will run from {plan['path']}. {old['path']} is left in place; delete it yourself once the portal works.",
             )
         )
     before = portal_url(old.get("host"), old.get("port"), old.get("base_path", ""))
@@ -757,105 +738,59 @@ def service_identity():
     return user.pw_uid, group.gr_gid
 
 
-def build_release(plan, uid, gid):
-    # The web pages are built for the URL path they will be served under.
+def build_in_place(plan):
+    """Install dependencies and build the web pages inside the clone.
+
+    Everything is built as the clone's owner, so the folder never collects
+    root-owned files and git pull keeps working. The service user only reads it.
+    """
     root = Path(plan["path"])
-    missing = []
-    ancestor = root
-    while not ancestor.exists():
-        missing.append(ancestor)
-        ancestor = ancestor.parent
-    for directory in reversed(missing):
-        directory.mkdir(mode=0o755)
-        directory.chmod(0o755)
-    root.chmod(0o755)
-    os.chown(root, 0, 0)
-    private_write(root / ".vmportal-install", "VM Portal system installer\n")
-    if (root / "releases").is_symlink():
-        raise SetupError("The releases folder must not be a symlink.")
-    (root / "releases").mkdir(mode=0o755, exist_ok=True)
-    (root / "releases").chmod(0o755)
-    os.chown(root / "releases", 0, 0)
-    release = root / "releases" / datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-    release.mkdir(mode=0o750)
+    owner = pwd.getpwuid(root.stat().st_uid)
+    # The services run as vmportal and must be able to read the project.
     if subprocess.run(
-        ["runuser", "-u", "vmportal", "--", "test", "-x", root / "releases"],
+        ["runuser", "-u", "vmportal", "--", "test", "-r", root / "backend/app/main.py"],
         capture_output=True,
     ).returncode:
         raise SetupError(
-            "The service user cannot reach this directory. Choose /opt/vmportal or check the parent folder permissions."
+            f"The vmportal service user cannot read {root}. Home folders are private on Ubuntu; clone the project to a shared place, for example: cd /opt && sudo git clone <repository-url>"
         )
-    excludes = [
-        ".git",
-        ".venv",
-        "node_modules",
-        "frontend/dist",
-        ".env",
-        ".env.*",
-        "__pycache__",
-        ".pytest_cache",
-        ".ruff_cache",
+    as_owner = [
+        "runuser",
+        "-u",
+        owner.pw_name,
+        "--",
+        "/usr/bin/env",
+        f"HOME={owner.pw_dir}",
+        "PYTHONDONTWRITEBYTECODE=1",
     ]
+    python = root / ".venv/bin/python"
+    if not python.exists():
+        run([*as_owner, "/usr/bin/python3", "-m", "venv", root / ".venv"], cwd=root)
+    pip = [*as_owner, python, "-m", "pip", "install", "--disable-pip-version-check"]
+    run([*pip, "pip>=26.2.2,<27"], cwd=root)
+    run([*pip, "-r", root / "backend/requirements.lock.txt"], cwd=root)
+    frontend = root / "frontend"
+    run([*as_owner, "/usr/bin/npm", "ci", "--no-audit", "--no-fund"], cwd=frontend)
+    # The web pages are built for the URL path they will be served under.
     run(
         [
-            "rsync",
-            "-a",
-            *[f"--exclude={name}" for name in excludes],
-            str(SOURCE) + "/",
-            str(release) + "/",
-        ]
-    )
-    # Keep backend/operator code owned by root throughout the build. Only the
-    # frontend workspace is writable by the unprivileged build account.
-    run(["chown", "-R", "--no-dereference", "root:vmportal", release])
-    run(["chmod", "-R", "g+rX,go-w,o-rwx", release])
-    run(["/usr/bin/python3", "-m", "venv", release / ".venv"])
-    python = release / ".venv/bin/python"
-    run(
-        [
-            python,
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            "pip>=26.2.2,<27",
-        ]
-    )
-    run(
-        [
-            python,
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            "-r",
-            release / "backend/requirements.lock.txt",
-        ]
-    )
-    frontend = release / "frontend"
-    run(["chown", "-R", "--no-dereference", f"{uid}:{gid}", frontend])
-    env = os.environ | {"HOME": str(STATE / "home"), "PYTHONDONTWRITEBYTECODE": "1"}
-    prefix = ["runuser", "-u", "vmportal", "--", "/usr/bin/env", f"HOME={STATE}/home"]
-    run(
-        [*prefix, "/usr/bin/npm", "ci", "--no-audit", "--no-fund"],
-        cwd=frontend,
-        env=env,
-    )
-    run(
-        [
-            *prefix,
+            *as_owner,
             f"PORTAL_BASE_PATH={plan.get('base_path', '')}",
             "/usr/bin/npm",
             "run",
             "build",
         ],
         cwd=frontend,
-        env=env,
     )
-    run(["chown", "-R", "--no-dereference", "root:vmportal", release])
-    run(["chmod", "-R", "g+rX,go-w,o-rwx", release])
     validate_assets(frontend / "dist")
-    return release
+    if subprocess.run(
+        ["runuser", "-u", "vmportal", "--", "test", "-x", python],
+        capture_output=True,
+    ).returncode:
+        raise SetupError(
+            f"The vmportal service user cannot run {python}; check the folder permissions."
+        )
+    return root
 
 
 def prepare_tls(plan, staging):
@@ -1088,7 +1023,7 @@ def tidy_legacy_files(plan):
     """After a successful switch, drop files only the old Nginx layout used."""
     (CONFIG / "nginx.conf").unlink(missing_ok=True)
     for directory in (STATE / "www", STATE / "nginx"):
-        if directory.is_dir() and directory != web_root(plan["path"]):
+        if directory.is_dir() and directory != web_root():
             shutil.rmtree(directory)
 
 
@@ -1181,7 +1116,7 @@ def apply(plan, old, old_env, release, cert, key, gid):
         remove_legacy_web()
         for name, text in service_units(plan, release).items():
             private_write(UNITS / name, text, 0o644)
-        target = web_root(plan["path"])
+        target = web_root()
         # New hashed assets first; the page that references them goes live after the health check.
         publish_assets(release, target, index=False)
         run(["systemctl", "daemon-reload"])
@@ -1198,11 +1133,6 @@ def apply(plan, old, old_env, release, cert, key, gid):
         health(plan["port"], service_names(plan), plan.get("base_path", ""))
         run(["systemctl", "enable", *service_names(plan)])
         publish_assets(release, target)
-        current = Path(plan["path"]) / "current"
-        temporary = current.with_name(".current-next")
-        temporary.unlink(missing_ok=True)
-        temporary.symlink_to(release)
-        os.replace(temporary, current)
         manifest["status"] = "ready"
         private_write(CONFIG / "install.json", json.dumps(manifest, indent=2) + "\n")
         tidy_legacy_files(plan)
@@ -1239,15 +1169,14 @@ def apply(plan, old, old_env, release, cert, key, gid):
 
 
 def current_release(old, plan):
-    """The installed release, reusable when only settings change."""
-    release = Path(old.get("release", ""))
+    """The build already in the clone, reusable when only settings change."""
+    root = Path(plan["path"])
     if (
         old.get("path") == plan["path"]
-        and release.is_dir()
-        and release.is_relative_to(Path(plan["path"]) / "releases")
-        and (release / ".venv/bin/python").exists()
+        and (root / ".venv/bin/python").exists()
+        and (root / "frontend/dist/index.html").is_file()
     ):
-        return release
+        return root
     return None
 
 
@@ -1315,12 +1244,10 @@ def main():
             uid, gid = service_identity()
             if plan["action"] == "settings":
                 release = current_release(old, plan)
-                print(f"Keeping the installed application: {release}")
+                print(f"Keeping the current build in {release}")
             else:
-                print(
-                    "Installing dependencies and building a new application release..."
-                )
-                release = build_release(plan, uid, gid)
+                print(f"Installing dependencies and building in {plan['path']}...")
+                release = build_in_place(plan)
             print("Backing up, updating the database schema and starting services...")
             backup = apply(plan, old, old_env, release, cert, key, gid)
         print(

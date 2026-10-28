@@ -18,7 +18,8 @@ Login → เมนู **รหัสผ่าน Portal** → กรอกร�
 ถ้า Admin ทุกคนเข้าไม่ได้ ผู้ดูแล Ubuntu Portal Server ใช้ offline operator CLI ผ่าน wrapper ที่อ่าน ENV ของ native service โดยไม่แสดง secrets:
 
 ```bash
-sudo /opt/vmportal/current/.venv/bin/python /opt/vmportal/current/scripts/portal_cli.py reset-password <username>
+cd /opt/service-vmportal
+sudo .venv/bin/python scripts/portal_cli.py reset-password <username>
 ```
 
 CLI ถามรหัสใหม่ผ่าน hidden prompt และยืนยันอีกครั้ง ไม่ใส่รหัสใน command line/history ใช้ DATABASE_URL/JWT_SECRET/ENCRYPTION_KEY จาก service environment เดิม ไม่สร้างบัญชี Administrator ใหม่ให้เอง บันทึก operator audit และเพิกถอน Session/โค้ดเดิม งานนี้เปลี่ยนเฉพาะบัญชี Portal ไม่ติดต่อ Proxmox
@@ -28,7 +29,8 @@ CLI ถามรหัสใหม่ผ่าน hidden prompt และยื�
 รันบนเครื่อง Portal ด้วย environment ของบริการเดิม:
 
 ```bash
-sudo /opt/vmportal/current/.venv/bin/python /opt/vmportal/current/scripts/reset_admin_password.py
+cd /opt/service-vmportal
+sudo .venv/bin/python scripts/reset_admin_password.py
 ```
 
 หากมี Admin ที่ใช้งานอยู่บัญชีเดียว สคริปต์แสดงชื่อแล้วถาม `New password:` และ `Confirm new password:` โดยไม่แสดงตัวอักษร รหัสต้องผ่านกฎเดียวกับเว็บ หากไม่ตรงกันหรือไม่ผ่านกฎจะให้กรอกใหม่ กด Ctrl+C เพื่อยกเลิกก่อนบันทึกได้

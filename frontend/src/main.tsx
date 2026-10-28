@@ -32,7 +32,7 @@ import { RequestStatus } from "./RequestStatus";
 import { thaiTime } from "./time";
 import { TemplateManager } from "./TemplateManager";
 import type { Template } from "./types";
-import { defaultDraft, QuotaCheck, quotaShortfall, type Draft } from "./QuotaCheck";
+import { defaultDraft, QuotaCards, quotaShortfall, type Draft } from "./QuotaCheck";
 import { jobDone, trackJobs, trackRequests, useRequestUpdates, type StatusSection } from "./requestUpdates";
 import { AdminRoleForm } from "./AdminRole";
 import { ConsolePage } from "./ConsolePage";
@@ -467,33 +467,7 @@ function App() {
           </section>
         ) : (
           <>
-            {dashboard && ["overview","requests"].includes(tab) && !admin && (
-              <div className="stats">
-                {[
-                  ["VMs", "vms"],
-                  ["vCPU", "cpu"],
-                  ["RAM · MiB", "ram"],
-                  ["Disk · GiB", "disk"],
-                ].map(([label, key]) => (
-                  <section className="panel stat" key={key}>
-                    <span>{label} reserved</span>
-                    <strong>
-                      {dashboard.usage[key]}
-                      <small>
-                        {" "}
-                        / {dashboard.user[("quota_" + key) as keyof User]}
-                      </small>
-                    </strong>
-                    <progress
-                      value={dashboard.usage[key]}
-                      max={Number(
-                        dashboard.user[("quota_" + key) as keyof User],
-                      )}
-                    />
-                  </section>
-                ))}
-              </div>
-            )}
+            {dashboard && ((tab === "overview" && !admin) || tab === "requests") && <QuotaCards dashboard={dashboard} draft={tab === "requests" ? draft : undefined}/>}
             {admin && tab === "overview" && <div className="stats admin-stats">{[
               ["VM ทั้งหมด",vms.filter(v => v.status!=="deleted").length],
               ["กำลังทำงาน",vms.filter(v=>v.status==="ready"&&runtime[v.id]?.power==="running").length],
@@ -725,7 +699,7 @@ function App() {
                     )}
 
                     <label><span>เหตุผลที่ขอสร้าง VM <span className="required-note">(จำเป็น)</span></span><textarea name="request_reason" required minLength={3} maxLength={1000} placeholder="เช่น ใช้พัฒนาและทดสอบระบบงานของหน่วยงาน"/></label>
-                    {dashboard&&quotaShortfall(dashboard,draft).some(row=>row.over)&&<p className="quota-inline" role="alert">เกินโควตา ส่งคำขอไม่ได้ ดูรายละเอียดที่กล่อง "โควตาที่ยังขอได้"</p>}
+                    {dashboard&&quotaShortfall(dashboard,draft).some(row=>row.over)&&<p className="quota-inline" role="alert">เกินโควตา ส่งคำขอไม่ได้ ดูการ์ดสีแดงด้านบน แล้วลดค่าที่ขอ หรือขอผู้ดูแลเพิ่มโควตา</p>}
                     <button
                       className="primary"
                       disabled={busy||!chosenTemplate||(!!dashboard&&quotaShortfall(dashboard,draft).some(row=>row.over))}
@@ -740,7 +714,6 @@ function App() {
                   <ol className="request-steps"><li>Admin ตรวจและอนุมัติคำขอ</li><li>ระบบสร้าง ตั้งค่า และเปิดเครื่องให้</li><li>ติดตามผลได้ที่หน้า <strong>สถานะคำขอ</strong> ระบบจะแจ้งเตือนเมื่อมีอัปเดต</li></ol>
                   <button type="button" onClick={()=>{setStatusSection("create");setTab("status");}}>ดูสถานะคำขอ{updateCount>0&&<span className="nav-count">{updateCount}</span>}</button>
                 </section>
-                {dashboard&&<section className="panel request-quota"><QuotaCheck dashboard={dashboard} draft={draft}/></section>}
                 </div>
               </div>
             )}

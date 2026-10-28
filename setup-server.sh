@@ -12,6 +12,7 @@ Interactive installer for Ubuntu 24.04 LTS:
   - Existing PostgreSQL user/database or creation of a local user/database
   - HTTPS served directly by the portal (no Nginx needed)
   - HTTPS certificate/key or generated self-signed certificate
+  - Runs from this cloned folder: dependencies and the web build stay here
   - Persistent systemd services, migrations, frontend build and health check
 
 Run again to change settings only (no rebuild) or to update the application.

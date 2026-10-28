@@ -3,16 +3,19 @@
 รองรับ **Ubuntu 24.04 LTS**, systemd และบัญชีที่ใช้ sudo ได้ ต้องมี Internet สำหรับ apt, pip และ npm ในขั้นติดตั้ง/อัปเดต Runtime ใช้งานใน LAN ได้ตามปกติ
 
 ```bash
-git clone https://github.com/pongsatornnn/vmportal.git
-cd vmportal
+cd /opt
+sudo git clone https://github.com/pongsatornnn/service-vmportal.git
+cd service-vmportal
 sudo bash setup-server.sh
 ```
+
+**ระบบรันจากโฟลเดอร์ที่ clone ไว้เลย** ไม่ copy ไปที่อื่น: ติดตั้ง Python packages ใน `.venv` และ build หน้าเว็บใน `frontend/dist` ของโฟลเดอร์นั้น บริการรันด้วย user `vmportal` ซึ่งต้องอ่านโฟลเดอร์นี้ได้ จึงควร clone ไว้ที่ `/opt` หรือ `/srv` ถ้า clone ไว้ใน home (Ubuntu ปิดสิทธิ์ไว้) ตัวติดตั้งจะแจ้งให้ย้าย การ build ทำด้วยบัญชีเจ้าของโฟลเดอร์ ไม่มีไฟล์ของ root ปน จึง `git pull` ได้ตามปกติ การ clone ด้วย `sudo` (เจ้าของเป็น root) ปลอดภัยกว่า เพราะ user ทั่วไปแก้โค้ดที่บริการรันไม่ได้
 
 ตัวติดตั้งดาวน์โหลด dependencies จาก Ubuntu package sources, ติดตั้ง Python packages ตาม lockfile และ build frontend โดยไม่ต้องเรียกคำสั่งติดตั้งอื่นเอง ข้อความในตัวติดตั้งเป็นภาษาอังกฤษ
 
 ## คำถามระหว่างติดตั้ง
 
-1. **URL path** ที่เว็บเปิดอยู่ เช่น `/vmportal` จะได้ `https://server:port/vmportal/` หรือ `/` ถ้าต้องการให้อยู่ที่หน้าแรกของ server ใช้ได้เฉพาะตัวพิมพ์เล็ก ตัวเลข และขีดกลาง คั่นด้วย `/` ถ้าเปิดหน้าแรกของ server จะพาไปที่ path นี้เอง โปรแกรมติดตั้งไว้ที่ `/opt/vmportal` เสมอ ไม่ต้องเลือก
+1. **URL path** ที่เว็บเปิดอยู่ เช่น `/vmportal` จะได้ `https://server:port/vmportal/` หรือ `/` ถ้าต้องการให้อยู่ที่หน้าแรกของ server ใช้ได้เฉพาะตัวพิมพ์เล็ก ตัวเลข และขีดกลาง คั่นด้วย `/` ถ้าเปิดหน้าแรกของ server จะพาไปที่ path นี้เอง
 2. **HTTPS port** ค่าเริ่มต้น `443` เลือก `8443` หรือ port อื่นที่ว่างได้
 3. **Hostname/IP** ที่ผู้ใช้เปิดเว็บ เช่น `portal.example.org` หรือ `192.168.1.10` (IPv4)
 4. **ใบรับรอง HTTPS** เลือก certificate/private key ที่เตรียมไว้ หรือให้สร้าง self-signed certificate ที่ตรงกับ Domain/IP
@@ -52,9 +55,8 @@ sudo cat /etc/vmportal/bootstrap-token
 
 | รายการ | ตำแหน่ง |
 |---|---|
-| Application ที่ใช้งาน | `<path>/current` |
-| แต่ละรุ่นที่ build | `<path>/releases/<timestamp>` |
-| ไฟล์หน้าเว็บที่เปิดให้ผู้ใช้ | `<path>/www` |
+| โปรแกรมที่บริการรัน | โฟลเดอร์ที่ clone (เช่น `/opt/service-vmportal`) พร้อม `.venv` และ `frontend/dist` |
+| ไฟล์หน้าเว็บที่เปิดให้ผู้ใช้ | `/var/lib/vmportal/www` (publish จาก `frontend/dist` หลังบริการพร้อม) |
 | Environment และ secrets | `/etc/vmportal/portal.env` (root:vmportal, 0640) |
 | ค่าตัวติดตั้ง | `/etc/vmportal/install.json` |
 | Certificate และ private key | `/etc/vmportal/tls/` |
@@ -63,10 +65,12 @@ sudo cat /etc/vmportal/bootstrap-token
 
 ## รันซ้ำเพื่อเปลี่ยนค่า หรืออัปเดตโค้ด
 
-รัน `sudo bash setup-server.sh` จาก repository ที่อัปเดตแล้ว หรือรันจาก installation:
+รันจากโฟลเดอร์ที่ clone ไว้ อัปเดตโค้ดด้วย `git pull` ก่อนถ้าต้องการรุ่นใหม่:
 
 ```bash
-sudo bash /opt/vmportal/current/setup-server.sh
+cd /opt/service-vmportal
+sudo git pull
+sudo bash setup-server.sh
 ```
 
 เมื่อพบการติดตั้งเดิม ตัวติดตั้งจะถามก่อนว่าจะทำอะไร:
@@ -95,16 +99,17 @@ sudo bash /opt/vmportal/current/setup-server.sh
 
 หาก DB เดิมติดต่อไม่ได้และเลือกเปลี่ยนไป DB ใหม่ ตัวติดตั้งจะขอให้ยืนยันแยก เพราะไม่สามารถตรวจงานหรือสำรอง DB เดิมได้ ค่าเริ่มต้นคือยกเลิก หากยืนยัน จะยังตรวจและสำรอง DB ปลายทางตามปกติ
 
-ก่อนสลับบริการต้องไม่มีงาน VM `queued`/`running` หากมี ตัวติดตั้งจะแจ้งให้รอแล้วรันใหม่ โดย build release ใหม่แยกจากรุ่นที่ใช้งานก่อนหยุดบริการ สำรอง config และ DB เดิมก่อน migration (`pg_dump --format=custom`) รวมถึงสำรอง DB ปลายทางถ้าเปลี่ยน DB
+ก่อนสลับบริการต้องไม่มีงาน VM `queued`/`running` หากมี ตัวติดตั้งจะแจ้งให้รอแล้วรันใหม่ ตัวติดตั้ง build ในโฟลเดอร์ที่ clone ก่อนหยุดบริการ สำรอง config และ DB เดิมก่อน migration (`pg_dump --format=custom`) รวมถึงสำรอง DB ปลายทางถ้าเปลี่ยน DB
 
-หากเปิดบริการรุ่นใหม่ไม่สำเร็จ จะคืน config/unit และเริ่มบริการรุ่นเดิม พร้อมเก็บ backup สำหรับกู้ข้อมูล การคืน config ไม่ downgrade schema หรือ restore DB อัตโนมัติ; backup อยู่ในตำแหน่งที่แจ้ง การรันครั้งแรกที่ล้มเหลวหลังเริ่ม migration จะเก็บคีย์และค่าที่กรอกไว้สำหรับรันซ้ำ หากสร้าง DB/User สำเร็จแต่ยังไม่ถึงขั้นบันทึกค่า ให้เลือกว่า DB มีอยู่แล้วในการรันครั้งถัดไป
+หากเปิดบริการไม่สำเร็จ จะคืน config/unit และเริ่มบริการอีกครั้ง พร้อมเก็บ backup สำหรับกู้ข้อมูล โค้ดคือโฟลเดอร์ที่ `git pull` มา ตัวติดตั้งจึงย้อนโค้ดให้ไม่ได้ ถ้ารุ่นใหม่มีปัญหาให้ `git checkout <commit เดิม>` แล้วรันตัวติดตั้งซ้ำ การคืน config ไม่ downgrade schema หรือ restore DB อัตโนมัติ; backup อยู่ในตำแหน่งที่แจ้ง การรันครั้งแรกที่ล้มเหลวหลังเริ่ม migration จะเก็บคีย์และค่าที่กรอกไว้สำหรับรันซ้ำ หากสร้าง DB/User สำเร็จแต่ยังไม่ถึงขั้นบันทึกค่า ให้เลือกว่า DB มีอยู่แล้วในการรันครั้งถัดไป
 
 ตัวติดตั้งนี้จัดการ **system services** ของตัวเองผ่าน `/etc/vmportal/install.json` การติดตั้งแบบ user services รุ่นเดิมใน `~/.config/vmportal` ยังใช้ได้ แต่ต้องวางแผนย้าย config/DB แยก ไม่ใช้ตัวติดตั้งนี้ทับการติดตั้งคนละแบบ
 
 ## รีเซ็ตรหัส Admin บน Server ที่ติดตั้ง
 
 ```bash
-sudo /opt/vmportal/current/.venv/bin/python /opt/vmportal/current/scripts/reset_admin_password.py --env-file /etc/vmportal/portal.env
+cd /opt/service-vmportal
+sudo .venv/bin/python scripts/reset_admin_password.py --env-file /etc/vmportal/portal.env
 ```
 
-โปรแกรมติดตั้งไว้ที่ `/opt/vmportal` เสมอ สคริปต์ถามรหัสใหม่และยืนยันแบบ hidden prompt
+เปลี่ยน `/opt/service-vmportal` เป็นโฟลเดอร์ที่ clone ไว้ สคริปต์ถามรหัสใหม่และยืนยันแบบ hidden prompt

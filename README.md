@@ -7,10 +7,13 @@ FastAPI + PostgreSQL + Redis/Celery + React ติดตั้งบน Ubuntu �
 ## Quick start (Ubuntu 24.04 LTS)
 
 ```bash
-git clone https://github.com/pongsatornnn/service-vmportal.git
+cd /opt
+sudo git clone https://github.com/pongsatornnn/service-vmportal.git
 cd service-vmportal
 sudo bash setup-server.sh
 ```
+
+The portal runs from the folder you clone: dependencies (`.venv`) and the web build (`frontend/dist`) stay in it. Clone somewhere the `vmportal` service user can read, such as `/opt`; Ubuntu home folders are private, so the installer stops with a hint if you clone there.
 
 The installer (English) asks for:
 
@@ -19,7 +22,7 @@ The installer (English) asks for:
 3. **HTTPS certificate**: your certificate and key, or a generated self-signed one
 4. **Database**: an existing PostgreSQL database/user, or create one on this server
 
-It installs dependencies, builds the app into `/opt/vmportal`, runs migrations, starts the services and checks they are healthy. Then:
+It installs dependencies and builds in that folder, runs migrations, starts the services and checks they are healthy. Then:
 
 ```bash
 sudo cat /etc/vmportal/bootstrap-token   # one-time code to create the first admin
@@ -27,7 +30,7 @@ sudo cat /etc/vmportal/bootstrap-token   # one-time code to create the first adm
 
 Open the URL shown, create the admin, then set up Proxmox and templates in the web UI.
 
-Run `sudo bash setup-server.sh` again at any time to **change settings only** (no rebuild) or to **update the application**. Every change is listed with what it affects before anything is applied, the database is backed up first, and a failed run restores the previous setup.
+To update: `sudo git pull` in the folder, then `sudo bash setup-server.sh` and choose **Update the application**. Run it again at any time to **change settings only** (no rebuild). Every change is listed with what it affects before anything is applied, the database is backed up first, and a failed run restores the previous setup.
 
 ## เอกสาร
 

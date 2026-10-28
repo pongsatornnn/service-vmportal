@@ -5,7 +5,8 @@
 | รายการ | ตำแหน่ง |
 |---|---|
 | URL | ตามที่ตอบตอนติดตั้ง เช่น `https://portal.example:443/vmportal/` |
-| โปรแกรมที่ใช้งาน | `/opt/vmportal/current` |
+| โปรแกรมที่ใช้งาน | โฟลเดอร์ที่ clone ไว้ เช่น `/opt/service-vmportal` |
+| ไฟล์หน้าเว็บที่เปิดให้ผู้ใช้ | `/var/lib/vmportal/www` |
 | Environment, secrets, TLS | `/etc/vmportal/` |
 | Redis/Beat state | `/var/lib/vmportal/` |
 | Backup ก่อนติดตั้ง/อัปเดต | `/var/backups/vmportal/` |
@@ -48,7 +49,8 @@ sudo journalctl -u vmportal-api -u vmportal-worker -f
 รันตัวติดตั้งซ้ำจาก repository ที่อัปเดตแล้ว เลือก **Change settings only** เพื่อเปลี่ยน URL path, port, hostname, certificate หรือ DB หรือ **Update the application** เพื่อติดตั้งรุ่นใหม่ ตัวติดตั้งแสดงผลกระทบของทุกค่าที่เปลี่ยนก่อนลงมือ สำรอง DB ให้อัตโนมัติ และคืนค่าเดิมถ้าล้มเหลว
 
 ```bash
-cd vmportal && git pull
+cd /opt/service-vmportal
+sudo git pull
 sudo bash setup-server.sh
 ```
 

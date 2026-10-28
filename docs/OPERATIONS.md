@@ -25,7 +25,8 @@ Job states: queued → running → succeeded หรือ needs_review; VM provi
 หาก Worker ล่มและ Job ยัง running ให้บันทึกสถานะรอตรวจสอบ:
 
 ```bash
-sudo /opt/vmportal/current/.venv/bin/python /opt/vmportal/current/scripts/portal_cli.py mark-interrupted JOB_ID
+cd /opt/service-vmportal
+sudo .venv/bin/python scripts/portal_cli.py mark-interrupted JOB_ID
 ```
 
 คำสั่งนี้เปลี่ยนเป็น needs_review พร้อม Audit เท่านั้น ไม่มี Proxmox mutation และไม่ Replay งาน การดำเนินการต่อ/การคืนทรัพยากรใน Phase 1 เป็น Manual DBA/Admin runbook หลังตรวจว่าทรัพยากรจริงเป็นของ request ที่ถูกต้อง เก็บหลักฐานและ Audit ก่อนเปลี่ยน DB ห้ามลบหรือแก้ VMID เพื่อหลีกเลี่ยง Quota

@@ -15,20 +15,28 @@ export function quotaShortfall(dashboard:Dashboard,draft:Draft){
   });
 }
 
-export function QuotaCheck({dashboard,draft}:{dashboard:Dashboard;draft:Draft}) {
-  const rows=quotaShortfall(dashboard,draft);const over=rows.filter(row=>row.over);
-  return <div className={`quota-check${over.length?" is-over":""}`} role={over.length?"alert":undefined}>
-    <p className="quota-check-title">{over.length?"เกินโควตา ส่งคำขอไม่ได้":"โควตาที่ยังขอได้"} <span>(นับรวมคำขอที่รออนุมัติ)</span></p>
-    <ul className="quota-bars">{rows.map(row=>{
-      // Bar: already used or reserved, then what this request would add.
-      const share=(value:number)=>row.quota>0?Math.min(value/row.quota,1)*100:100;
-      const usedPct=share(row.used),askPct=row.over?100-usedPct:share(row.asked);
-      const leftPct=row.quota>0?Math.round(row.left/row.quota*100):0;
-      return <li key={row.key} className={row.over?"over":""}>
-        <div className="quota-bar-label"><span>{row.label} <small>เหลือ {leftPct}%</small></span><span><strong>{row.left.toLocaleString("th-TH")}</strong> / {row.quota.toLocaleString("th-TH")}{row.unit}</span></div>
-        <div className="quota-bar" role="img" aria-label={`${row.label} ใช้หรือจองแล้ว ${row.used} คำขอนี้ ${row.asked} จาก ${row.quota}${row.unit}`}><span className="used" style={{width:`${usedPct}%`}}/><span className="asking" style={{width:`${askPct}%`}}/></div>
-      </li>;})}</ul>
-    <p className="quota-legend"><span className="used">ใช้/จองแล้ว</span><span className="asking">คำขอนี้</span></p>
-    {over.length>0&&<p className="quota-check-hint">{over.map(row=>row.key==="vms"?"จำนวน VM ครบโควตาแล้ว":`${row.label} ขอ ${row.asked.toLocaleString("th-TH")}${row.unit} แต่เหลือ ${row.left.toLocaleString("th-TH")}${row.unit}`).join(" · ")} กรุณาลดค่าที่ขอ หรือขอผู้ดูแลเพิ่มโควตา</p>}
-  </div>;
+const cardLabels:Record<string,string>={vms:"VM",cpu:"vCPU",ram:"RAM · MiB",disk:"Disk · GiB"};
+const number=(value:number)=>value.toLocaleString("th-TH");
+
+// Quota cards: used or reserved so far (pending requests included). On the
+// request form the bar also shows what this request would take.
+export function QuotaCards({dashboard,draft}:{dashboard:Dashboard;draft?:Draft}) {
+  const rows=quotaShortfall(dashboard,draft??defaultDraft);
+  return <>
+    <div className={`stats quota-cards${draft?" is-request":""}`}>
+      {rows.map(row=>{
+        const asking=!!draft;
+        const share=(value:number)=>row.quota>0?Math.min(value/row.quota,1)*100:100;
+        const usedPct=share(row.used),askPct=!asking?0:row.over?100-usedPct:share(row.asked);
+        const note=!asking?`เหลือ ${number(row.left)}`:row.over?(row.key==="vms"?"ครบโควตาแล้ว":`เกิน: ขอ ${number(row.asked)} เหลือ ${number(row.left)}`):`คำขอนี้ +${number(row.asked)} · เหลือ ${number(row.left-row.asked)}`;
+        return <section className={`panel stat quota-card${asking&&row.over?" over":""}`} key={row.key}>
+          <span>{cardLabels[row.key]}</span>
+          <strong>{number(row.used)}<small> / {number(row.quota)}</small></strong>
+          <div className="quota-bar" role="img" aria-label={`${cardLabels[row.key]} ใช้หรือจองแล้ว ${row.used}${asking?` คำขอนี้ ${row.asked}`:""} จาก ${row.quota}`}><span className="used" style={{width:`${usedPct}%`}}/>{asking&&<span className="asking" style={{width:`${askPct}%`}}/>}</div>
+          <small className="quota-note">{note}</small>
+        </section>;
+      })}
+    </div>
+    {draft&&<p className="quota-legend"><span className="used">ใช้/จองแล้ว (รวมคำขอรออนุมัติ)</span><span className="asking">คำขอนี้</span></p>}
+  </>;
 }
