@@ -74,9 +74,36 @@ sudo bash setup-server.sh
 
 ## ดูแลระบบ
 
+### Services
+
+ตัวติดตั้งสร้าง systemd services ดังนี้ ทุกตัวรันด้วยบัญชีที่ใช้ติดตั้ง (ไม่ใช่ root) และเปิดเองเมื่อ boot
+
+| Service | หน้าที่ |
+|---|---|
+| `vmportal` | **ตัวรวม** สั่ง start / stop / restart ทั้ง 4 ตัวด้านล่างพร้อมกันด้วยชื่อเดียว (ไม่มีโปรแกรมของตัวเอง) |
+| `vmportal-api` | เว็บและ API (HTTPS) รวม Console |
+| `vmportal-worker` | ทำงานที่สั่ง Proxmox: สร้าง VM, เปิด-ปิด, รีเซ็ตรหัส, ลบ |
+| `vmportal-beat` | ตัวตั้งเวลา: ส่งงานให้ worker ทุก 10 วินาที และล้างประวัติที่เกิน 7 วันทุกชั่วโมง |
+| `vmportal-redis` | Redis ของ Portal (รับเฉพาะในเครื่อง) |
+
+นอกจากนี้ Portal ใช้ `postgresql` ของระบบเมื่อให้ตัวติดตั้งสร้าง DB บนเครื่องนี้
+
+ทั้งระบบพร้อมกัน:
+
+```bash
+sudo systemctl restart vmportal          # restart ทั้ง 4 ตัว
+sudo systemctl stop vmportal             # หยุดทั้งหมด
+sudo systemctl start vmportal            # เปิดทั้งหมด
+systemctl list-units 'vmportal*'         # ดูสถานะทุกตัวในบรรทัดเดียว
+```
+
+`systemctl status vmportal` บอกเฉพาะสถานะของตัวรวม ถ้าต้องการรู้ว่าตัวไหนหยุดหรือล้ม ให้ใช้ `systemctl list-units 'vmportal*'` หรือดูทีละตัว
+
+แยกทีละตัวยังทำได้ตามปกติ:
+
 ```bash
 sudo systemctl status vmportal-api vmportal-worker vmportal-beat vmportal-redis
-sudo systemctl restart vmportal-api vmportal-worker vmportal-beat
+sudo systemctl restart vmportal-worker   # restart เฉพาะ worker ตัวอื่นไม่สะดุด
 sudo journalctl -u vmportal-api -u vmportal-worker -f
 ```
 

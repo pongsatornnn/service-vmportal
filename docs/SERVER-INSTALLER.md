@@ -40,9 +40,13 @@ Self-signed ใช้เข้ารหัส HTTPS ได้ แต่ browser 
 ตัวติดตั้งรัน migration, เริ่มบริการ และตรวจ `/api/health` ผ่าน HTTPS ก่อนแสดง URL พร้อมใช้งาน บริการเริ่มอัตโนมัติหลังรีบูต:
 
 ```bash
+sudo systemctl restart vmportal          # ตัวรวม: start/stop/restart ทั้ง 4 ตัวพร้อมกัน
+systemctl list-units 'vmportal*'         # สถานะของทุกตัว
 sudo systemctl status vmportal-api vmportal-worker vmportal-beat vmportal-redis
 sudo journalctl -u vmportal-api -u vmportal-worker -n 100 --no-pager
 ```
+
+`vmportal.service` เป็น unit แบบ oneshot ที่ `Wants=` ทั้ง 4 ส่วน และแต่ละส่วนมี `PartOf=vmportal.service` คำสั่ง stop/restart ของตัวรวมจึงส่งต่อไปทุกส่วน ส่วนการสั่งทีละตัวไม่กระทบตัวอื่น
 
 API รันด้วยบัญชีที่ติดตั้ง พร้อม certificate/key มีการบีบอัดไฟล์หน้าเว็บ, cache ไฟล์ที่ไม่เปลี่ยน, security headers และจำกัด body 128 KiB
 

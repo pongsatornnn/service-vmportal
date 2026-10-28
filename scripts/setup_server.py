@@ -37,7 +37,10 @@ CONFIG = Path("/etc/vmportal")
 STATE = Path("/var/lib/vmportal")
 UNITS = Path("/etc/systemd/system")
 BACKUPS = Path("/var/backups/vmportal")
-SERVICES = [f"vmportal-{name}.service" for name in ("redis", "api", "worker", "beat")]
+PARTS = [f"vmportal-{name}.service" for name in ("redis", "api", "worker", "beat")]
+# One name to start, stop, restart or check the whole portal; each part stays its own unit.
+GROUP = "vmportal.service"
+SERVICES = PARTS + [GROUP]
 # Older installs put Nginx in front of the API; re-running removes it.
 LEGACY_SERVICES = ["vmportal-web.service"]
 
@@ -957,6 +960,7 @@ Description=VM Portal {name}
 After=network-online.target {deps}
 Wants=network-online.target
 {("Requires=" + deps) if deps else ""}
+PartOf={GROUP}
 
 [Service]
 Type=simple
@@ -998,6 +1002,22 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
+"""
+    parts = " ".join(PARTS)
+    result[GROUP] = f"""[Unit]
+Description=VM Portal (all services: {parts})
+Wants={parts}
+After={parts}
+
+[Service]
+# Holds the parts together: they follow its stop and restart via PartOf.
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecReload=/bin/true
 
 [Install]
 WantedBy=multi-user.target
@@ -1232,6 +1252,7 @@ def apply(plan, old, old_env, release, cert, key, gid):
                 "vmportal-api",
                 "vmportal-worker",
                 "vmportal-beat",
+                "vmportal",
             ]
         )
         health(plan["port"], service_names(plan), plan.get("base_path", ""))
