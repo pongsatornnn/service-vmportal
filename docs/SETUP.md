@@ -5,7 +5,7 @@
 | รายการ | ตำแหน่ง |
 |---|---|
 | URL | ตามที่ตอบตอนติดตั้ง เช่น `https://portal.example:443/vmportal/` |
-| โปรแกรมที่ใช้งาน | โฟลเดอร์ที่ clone ไว้ เช่น `/opt/service-vmportal` |
+| โปรแกรมที่ใช้งาน | โฟลเดอร์ที่ clone ไว้ เช่น `~/service-vmportal` |
 | ไฟล์หน้าเว็บที่เปิดให้ผู้ใช้ | `/var/lib/vmportal/www` |
 | Environment, secrets, TLS | `/etc/vmportal/` |
 | Redis/Beat state | `/var/lib/vmportal/` |
@@ -31,7 +31,7 @@
 ## Secrets และ Security
 
 - API Token Secret รับจาก Admin ผ่าน HTTPS เท่านั้น เก็บใน PostgreSQL แบบ Fernet authenticated encryption ไม่ส่งค่ากลับใน Response/Audit Log
-- Master Key `ENCRYPTION_KEY` อยู่ใน `/etc/vmportal/portal.env` (root:vmportal 0640) ต้องสำรองพร้อม Database การสร้าง Master Key ใหม่จะทำให้ถอด Secret เดิมไม่ได้
+- Master Key `ENCRYPTION_KEY` อยู่ใน `/etc/vmportal/portal.env` (root:กลุ่มของบัญชีที่ติดตั้ง, 0640) ต้องสำรองพร้อม Database การสร้าง Master Key ใหม่จะทำให้ถอด Secret เดิมไม่ได้
 - CA ของ Proxmox เก็บใน DB ระบบตรวจ CA และ Hostname เสมอ ไม่มีตัวเลือกข้าม TLS verification
 - บันทึกการเชื่อมต่อใหม่จะพักการสั่งงานและทำให้ทุก Template ต้องตรวจสอบใหม่
 - Infrastructure identity (Cluster/Node/Pool/Storage) ถูกล็อกเมื่อมี VM แล้ว
@@ -49,8 +49,8 @@ sudo journalctl -u vmportal-api -u vmportal-worker -f
 รันตัวติดตั้งซ้ำจาก repository ที่อัปเดตแล้ว เลือก **Change settings only** เพื่อเปลี่ยน URL path, port, hostname, certificate หรือ DB หรือ **Update the application** เพื่อติดตั้งรุ่นใหม่ ตัวติดตั้งแสดงผลกระทบของทุกค่าที่เปลี่ยนก่อนลงมือ สำรอง DB ให้อัตโนมัติ และคืนค่าเดิมถ้าล้มเหลว
 
 ```bash
-cd /opt/service-vmportal
-sudo git pull
+cd ~/service-vmportal
+git pull
 sudo bash setup-server.sh
 ```
 

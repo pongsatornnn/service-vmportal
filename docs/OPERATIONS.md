@@ -25,7 +25,7 @@ Job states: queued → running → succeeded หรือ needs_review; VM provi
 หาก Worker ล่มและ Job ยัง running ให้บันทึกสถานะรอตรวจสอบ:
 
 ```bash
-cd /opt/service-vmportal
+cd ~/service-vmportal
 sudo .venv/bin/python scripts/portal_cli.py mark-interrupted JOB_ID
 ```
 

@@ -18,7 +18,7 @@ Login → เมนู **รหัสผ่าน Portal** → กรอกร�
 ถ้า Admin ทุกคนเข้าไม่ได้ ผู้ดูแล Ubuntu Portal Server ใช้ offline operator CLI ผ่าน wrapper ที่อ่าน ENV ของ native service โดยไม่แสดง secrets:
 
 ```bash
-cd /opt/service-vmportal
+cd ~/service-vmportal
 sudo .venv/bin/python scripts/portal_cli.py reset-password <username>
 ```
 
@@ -29,7 +29,7 @@ CLI ถามรหัสใหม่ผ่าน hidden prompt และยื�
 รันบนเครื่อง Portal ด้วย environment ของบริการเดิม:
 
 ```bash
-cd /opt/service-vmportal
+cd ~/service-vmportal
 sudo .venv/bin/python scripts/reset_admin_password.py
 ```
 

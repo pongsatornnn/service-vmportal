@@ -119,22 +119,41 @@ def valid_location(path=None):
     path = Path(path or SOURCE).resolve()
     if not re.fullmatch(r"/[A-Za-z0-9_./-]+", str(path)):
         raise SetupError(
-            f"The project folder {path} must use only letters, digits, /, _, - or dots, with no spaces. Clone it somewhere like /opt/service-vmportal."
+            f"The project folder {path} must use only letters, digits, /, _, - or dots, with no spaces. Clone it somewhere like ~/service-vmportal."
         )
     if any(
         path.is_relative_to(Path(base))
         for base in ("/tmp", "/var/tmp", "/run", "/dev", "/proc", "/sys")
     ):
         raise SetupError(
-            f"{path} is temporary. Clone the project to a permanent place such as /opt/service-vmportal."
+            f"{path} is temporary. Clone the project to a permanent place such as ~/service-vmportal."
         )
     if path in {
         Path(p) for p in ("/", "/opt", "/srv", "/var", "/usr", "/etc", "/home", "/root")
     }:
         raise SetupError(
-            "Clone the project into its own folder, such as /opt/service-vmportal."
+            "Clone the project into its own folder, such as ~/service-vmportal."
         )
     return str(path)
+
+
+def service_account(path=None):
+    """The account the portal runs as: whoever started the installer with sudo.
+
+    It owns the clone, builds there and runs the services; nothing runs as root.
+    """
+    name = os.environ.get("SUDO_USER") or ""
+    if not name or name == "root":
+        name = pwd.getpwuid(Path(path or SOURCE).stat().st_uid).pw_name
+    try:
+        user = pwd.getpwnam(name)
+    except KeyError:
+        raise SetupError(f"The account {name} does not exist.") from None
+    if user.pw_uid == 0:
+        raise SetupError(
+            "The portal must not run as root. Run the installer with sudo from the account that should run it, for example: sudo bash setup-server.sh"
+        )
+    return user.pw_name, grp.getgrgid(user.pw_gid).gr_name
 
 
 def database_url(host, port, name, user, password):
@@ -343,6 +362,8 @@ def web_root(path=None):
 def collect(old, old_env, action="install"):
     # The portal runs from the folder the project was cloned into.
     path = valid_location()
+    user, group = service_account(path)
+    print(f"The portal will run as {user} from {path}.")
     if action == "settings" and old.get("path") and path != old["path"]:
         print(f"The portal will now run from {path}, so it is built there too.")
         action = "update"
@@ -414,6 +435,8 @@ def collect(old, old_env, action="install"):
         action=action,
         web_mode="direct",
         path=path,
+        user=user,
+        group=group,
         base_path=base,
         port=port,
         host=host,
@@ -456,6 +479,14 @@ def describe_changes(old, old_env, plan):
                 "Location",
                 f"{old['path']} -> {plan['path']}",
                 f"Services will run from {plan['path']}. {old['path']} is left in place; delete it yourself once the portal works.",
+            )
+        )
+    if old.get("user", "vmportal") != plan["user"]:
+        changes.append(
+            (
+                "Service account",
+                f"{old.get('user', 'vmportal')} -> {plan['user']}",
+                f"The services, the build in {plan['path']} and the portal's data under {STATE} now belong to {plan['user']}.",
             )
         )
     before = portal_url(old.get("host"), old.get("port"), old.get("base_path", ""))
@@ -696,32 +727,10 @@ def environment_text(values):
     )
 
 
-def service_identity():
-    try:
-        group = grp.getgrnam("vmportal")
-    except KeyError:
-        run(["groupadd", "--system", "vmportal"])
-        group = grp.getgrnam("vmportal")
-    try:
-        user = pwd.getpwnam("vmportal")
-    except KeyError:
-        run(
-            [
-                "useradd",
-                "--system",
-                "--gid",
-                "vmportal",
-                "--home-dir",
-                STATE / "home",
-                "--no-create-home",
-                "--shell",
-                "/usr/sbin/nologin",
-                "vmportal",
-            ]
-        )
-        user = pwd.getpwnam("vmportal")
+def service_identity(plan):
+    user = pwd.getpwnam(plan["user"])
     if user.pw_uid == 0:
-        raise SetupError("The vmportal service user must not be root.")
+        raise SetupError("The portal must not run as root.")
     STATE.mkdir(parents=True, exist_ok=True)
     STATE.chmod(0o755)
     os.chown(STATE, 0, 0)
@@ -731,36 +740,51 @@ def service_identity():
     for directory in (STATE / "home", STATE / "beat"):
         directory.mkdir(exist_ok=True)
         directory.chmod(0o700)
-        os.chown(directory, user.pw_uid, group.gr_gid)
+        run(
+            [
+                "chown",
+                "-R",
+                "--no-dereference",
+                f"{user.pw_uid}:{user.pw_gid}",
+                directory,
+            ]
+        )
     CONFIG.mkdir(parents=True, exist_ok=True)
     os.chmod(CONFIG, 0o750)
-    os.chown(CONFIG, 0, group.gr_gid)
-    return user.pw_uid, group.gr_gid
+    os.chown(CONFIG, 0, user.pw_gid)
+    return user.pw_uid, user.pw_gid
 
 
 def build_in_place(plan):
     """Install dependencies and build the web pages inside the clone.
 
-    Everything is built as the clone's owner, so the folder never collects
-    root-owned files and git pull keeps working. The service user only reads it.
+    Everything is built by the account that runs the portal, so the folder never
+    collects root-owned files and git pull keeps working.
     """
     root = Path(plan["path"])
-    owner = pwd.getpwuid(root.stat().st_uid)
-    # The services run as vmportal and must be able to read the project.
+    user = pwd.getpwnam(plan["user"])
+    owner = f"{user.pw_name}:{plan['group']}"
+    if root.stat().st_uid != user.pw_uid:
+        # For example a clone made with sudo git clone.
+        print(f"Giving {user.pw_name} ownership of {root}...")
+        run(["chown", "-R", "--no-dereference", owner, root])
+    else:
+        # Files a sudo git pull may have left behind.
+        run(["chown", "-R", "--no-dereference", "--from=root", owner, root])
     if subprocess.run(
-        ["runuser", "-u", "vmportal", "--", "test", "-r", root / "backend/app/main.py"],
+        ["runuser", "-u", user.pw_name, "--", "test", "-w", root],
         capture_output=True,
     ).returncode:
         raise SetupError(
-            f"The vmportal service user cannot read {root}. Home folders are private on Ubuntu; clone the project to a shared place, for example: cd /opt && sudo git clone <repository-url>"
+            f"{user.pw_name} cannot write to {root}; check the permissions of the folders above it."
         )
     as_owner = [
         "runuser",
         "-u",
-        owner.pw_name,
+        user.pw_name,
         "--",
         "/usr/bin/env",
-        f"HOME={owner.pw_dir}",
+        f"HOME={user.pw_dir}",
         "PYTHONDONTWRITEBYTECODE=1",
     ]
     python = root / ".venv/bin/python"
@@ -783,13 +807,6 @@ def build_in_place(plan):
         cwd=frontend,
     )
     validate_assets(frontend / "dist")
-    if subprocess.run(
-        ["runuser", "-u", "vmportal", "--", "test", "-x", python],
-        capture_output=True,
-    ).returncode:
-        raise SetupError(
-            f"The vmportal service user cannot run {python}; check the folder permissions."
-        )
     return root
 
 
@@ -862,7 +879,8 @@ def tls_access(plan):
     (CONFIG / "tls").chmod(0o750 if direct else 0o700)
     (CONFIG / "tls/portal.key").chmod(0o640 if direct else 0o600)
     if direct:
-        run(["chown", "root:vmportal", CONFIG / "tls", CONFIG / "tls/portal.key"])
+        group = plan.get("group", "vmportal")
+        run(["chown", f"root:{group}", CONFIG / "tls", CONFIG / "tls/portal.key"])
 
 
 def service_units(plan, release):
@@ -894,8 +912,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=vmportal
-Group=vmportal
+User={plan["user"]}
+Group={plan["group"]}
 WorkingDirectory={release}/backend
 Environment=HOME={STATE}/home
 {("EnvironmentFile=" + str(CONFIG / "portal.env")) if name in {"api", "worker", "beat"} else ""}
@@ -1063,6 +1081,8 @@ def apply(plan, old, old_env, release, cert, key, gid):
             key: plan[key]
             for key in (
                 "path",
+                "user",
+                "group",
                 "base_path",
                 "port",
                 "host",
@@ -1083,7 +1103,7 @@ def apply(plan, old, old_env, release, cert, key, gid):
         prefix = [
             "runuser",
             "-u",
-            "vmportal",
+            plan["user"],
             "--",
             "/usr/bin/env",
             f"HOME={STATE}/home",
@@ -1106,7 +1126,15 @@ def apply(plan, old, old_env, release, cert, key, gid):
         if redis_directory.is_symlink():
             raise SetupError("The Redis state directory must not be a symlink.")
         redis_directory.mkdir(mode=0o700, exist_ok=True)
-        run(["chown", "--no-dereference", "vmportal:vmportal", redis_directory])
+        run(
+            [
+                "chown",
+                "-R",
+                "--no-dereference",
+                f"{plan['user']}:{plan['group']}",
+                redis_directory,
+            ]
+        )
         private_write(
             CONFIG / "redis.conf",
             f"bind 127.0.0.1\nport {plan['redis_port']}\nprotected-mode yes\nrequirepass {redis_password}\nappendonly yes\ndir {redis_directory}\nsave 900 1\n",
@@ -1219,7 +1247,7 @@ def main():
             print("\nNothing changed. The installation was left as it is.")
             return
         print(
-            f"\nURL: {portal_url(plan['host'], plan['port'], plan['base_path'])}\nInstalled in: {plan['path']}\nDatabase: {database_label(plan['env']['DATABASE_URL'])}\nCreate new database: {'yes' if plan['create_db'] else 'no'}"
+            f"\nURL: {portal_url(plan['host'], plan['port'], plan['base_path'])}\nInstalled in: {plan['path']}\nRuns as: {plan['user']}\nDatabase: {database_label(plan['env']['DATABASE_URL'])}\nCreate new database: {'yes' if plan['create_db'] else 'no'}"
         )
         if changes:
             print("\nChanges and what they affect:")
@@ -1241,7 +1269,7 @@ def main():
                 create_database(plan["env"]["DATABASE_URL"])
             verify_database(plan)
             require_idle(plan["env"]["DATABASE_URL"])
-            uid, gid = service_identity()
+            uid, gid = service_identity(plan)
             if plan["action"] == "settings":
                 release = current_release(old, plan)
                 print(f"Keeping the current build in {release}")

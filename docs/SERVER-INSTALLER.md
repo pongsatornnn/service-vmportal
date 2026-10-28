@@ -3,13 +3,12 @@
 รองรับ **Ubuntu 24.04 LTS**, systemd และบัญชีที่ใช้ sudo ได้ ต้องมี Internet สำหรับ apt, pip และ npm ในขั้นติดตั้ง/อัปเดต Runtime ใช้งานใน LAN ได้ตามปกติ
 
 ```bash
-cd /opt
-sudo git clone https://github.com/pongsatornnn/service-vmportal.git
+git clone https://github.com/pongsatornnn/service-vmportal.git
 cd service-vmportal
 sudo bash setup-server.sh
 ```
 
-**ระบบรันจากโฟลเดอร์ที่ clone ไว้เลย** ไม่ copy ไปที่อื่น: ติดตั้ง Python packages ใน `.venv` และ build หน้าเว็บใน `frontend/dist` ของโฟลเดอร์นั้น บริการรันด้วย user `vmportal` ซึ่งต้องอ่านโฟลเดอร์นี้ได้ จึงควร clone ไว้ที่ `/opt` หรือ `/srv` ถ้า clone ไว้ใน home (Ubuntu ปิดสิทธิ์ไว้) ตัวติดตั้งจะแจ้งให้ย้าย การ build ทำด้วยบัญชีเจ้าของโฟลเดอร์ ไม่มีไฟล์ของ root ปน จึง `git pull` ได้ตามปกติ การ clone ด้วย `sudo` (เจ้าของเป็น root) ปลอดภัยกว่า เพราะ user ทั่วไปแก้โค้ดที่บริการรันไม่ได้
+**ระบบรันจากโฟลเดอร์ที่ clone ไว้เลย** ไม่ copy ไปที่อื่น: ติดตั้ง Python packages ใน `.venv` และ build หน้าเว็บใน `frontend/dist` ของโฟลเดอร์นั้น **บริการรันด้วยบัญชีที่สั่ง `sudo bash setup-server.sh`** (ไม่ใช่ root และไม่สร้าง user แยก) บัญชีนี้เป็นเจ้าของโฟลเดอร์ เป็นผู้ build และเขียนข้อมูลของ Portal ใน `/var/lib/vmportal` จึง clone ไว้ใน home ได้ ถ้าโฟลเดอร์เป็นของบัญชีอื่น (เช่น clone ด้วย `sudo git clone`) ตัวติดตั้งจะโอนให้บัญชีนี้ และไฟล์ที่ root ทิ้งไว้จะถูกโอนคืนทุกครั้ง จึง `git pull` ได้ตามปกติโดยไม่ต้องใช้ sudo ตัวติดตั้งไม่ยอมให้บริการรันเป็น root
 
 ตัวติดตั้งดาวน์โหลด dependencies จาก Ubuntu package sources, ติดตั้ง Python packages ตาม lockfile และ build frontend โดยไม่ต้องเรียกคำสั่งติดตั้งอื่นเอง ข้อความในตัวติดตั้งเป็นภาษาอังกฤษ
 
@@ -41,7 +40,7 @@ sudo systemctl status vmportal-api vmportal-worker vmportal-beat vmportal-redis
 sudo journalctl -u vmportal-api -u vmportal-worker -n 100 --no-pager
 ```
 
-API รันด้วย service user `vmportal` พร้อม certificate/key มีการบีบอัดไฟล์หน้าเว็บ, cache ไฟล์ที่ไม่เปลี่ยน, security headers และจำกัด body 128 KiB
+API รันด้วยบัญชีที่ติดตั้ง พร้อม certificate/key มีการบีบอัดไฟล์หน้าเว็บ, cache ไฟล์ที่ไม่เปลี่ยน, security headers และจำกัด body 128 KiB
 
 เปิด URL ที่แสดง สร้าง Admin ครั้งแรกด้วย setup code:
 
@@ -55,9 +54,9 @@ sudo cat /etc/vmportal/bootstrap-token
 
 | รายการ | ตำแหน่ง |
 |---|---|
-| โปรแกรมที่บริการรัน | โฟลเดอร์ที่ clone (เช่น `/opt/service-vmportal`) พร้อม `.venv` และ `frontend/dist` |
+| โปรแกรมที่บริการรัน | โฟลเดอร์ที่ clone (เช่น `~/service-vmportal`) พร้อม `.venv` และ `frontend/dist` |
 | ไฟล์หน้าเว็บที่เปิดให้ผู้ใช้ | `/var/lib/vmportal/www` (publish จาก `frontend/dist` หลังบริการพร้อม) |
-| Environment และ secrets | `/etc/vmportal/portal.env` (root:vmportal, 0640) |
+| Environment และ secrets | `/etc/vmportal/portal.env` (root:กลุ่มของบัญชีที่ติดตั้ง, 0640) |
 | ค่าตัวติดตั้ง | `/etc/vmportal/install.json` |
 | Certificate และ private key | `/etc/vmportal/tls/` |
 | ข้อมูล Redis/Beat | `/var/lib/vmportal/` |
@@ -68,8 +67,8 @@ sudo cat /etc/vmportal/bootstrap-token
 รันจากโฟลเดอร์ที่ clone ไว้ อัปเดตโค้ดด้วย `git pull` ก่อนถ้าต้องการรุ่นใหม่:
 
 ```bash
-cd /opt/service-vmportal
-sudo git pull
+cd ~/service-vmportal
+git pull
 sudo bash setup-server.sh
 ```
 
@@ -86,6 +85,7 @@ sudo bash setup-server.sh
 | Certificate | Browser เห็นใบรับรองใหม่ ถ้าเป็น self-signed ผู้ใช้ต้องกดยอมรับใหม่ |
 | Database | Portal จะแสดงข้อมูลของ DB ใหม่ ไม่ย้ายข้อมูลจาก DB เดิม และทุกคนต้อง Login ใหม่ |
 | ติดตั้งเดิมใช้ Nginx | หยุดและลบ `vmportal-web.service` ของ Portal แล้วให้ Portal เปิด HTTPS เอง แพ็กเกจ Nginx ยังอยู่สำหรับเว็บอื่น |
+| บัญชีที่รัน | บริการ, build ในโฟลเดอร์ และข้อมูลใน `/var/lib/vmportal` เปลี่ยนเป็นของบัญชีใหม่ (การติดตั้งรุ่นก่อนใช้ user `vmportal` จะย้ายมาเป็นบัญชีที่รันตัวติดตั้ง ส่วน user `vmportal` เดิมไม่ถูกลบ) |
 | Update application | รัน migration และรีสตาร์ทบริการ (หยุดให้บริการประมาณหนึ่งนาที) |
 
 ถ้าขั้นใดล้มเหลว ตัวติดตั้งจะคืน config และบริการเดิม (รวม Nginx ของการติดตั้งเก่า) ให้อัตโนมัติ เมื่อถาม **Change the database connection? [y/N]**:
@@ -108,8 +108,8 @@ sudo bash setup-server.sh
 ## รีเซ็ตรหัส Admin บน Server ที่ติดตั้ง
 
 ```bash
-cd /opt/service-vmportal
+cd ~/service-vmportal
 sudo .venv/bin/python scripts/reset_admin_password.py --env-file /etc/vmportal/portal.env
 ```
 
-เปลี่ยน `/opt/service-vmportal` เป็นโฟลเดอร์ที่ clone ไว้ สคริปต์ถามรหัสใหม่และยืนยันแบบ hidden prompt
+เปลี่ยน `~/service-vmportal` เป็นโฟลเดอร์ที่ clone ไว้ สคริปต์ถามรหัสใหม่และยืนยันแบบ hidden prompt
