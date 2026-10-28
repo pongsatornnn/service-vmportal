@@ -1321,11 +1321,25 @@ def main():
     ).parse_args()
     if os.geteuid() != 0:
         raise SystemExit("Run: sudo bash setup-server.sh")
-    lock = open("/run/lock/vmportal-setup.lock", "w")
+    # "a+" keeps the running installer's PID readable for a second attempt.
+    lock = open("/run/lock/vmportal-setup.lock", "a+")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        raise SystemExit("Another installer run is already in progress.") from None
+        lock.seek(0)
+        pid = lock.read().strip()
+        raise SystemExit(
+            f"Another installer run is already in progress (PID {pid or 'unknown'}).\n"
+            "If an SSH session dropped, it may still be working: check with\n"
+            f"  ps -o pid,etime,args --ppid {pid or '<PID>'} -p {pid or '<PID>'}\n"
+            "and wait for it to finish. If it is stuck, stop it so it can restore the previous state:\n"
+            f"  sudo kill -INT {pid or '<PID>'}\n"
+            "Run the installer inside tmux (tmux new -s vmportal) so a dropped connection does not stop it."
+        ) from None
+    lock.seek(0)
+    lock.truncate()
+    lock.write(f"{os.getpid()}\n")
+    lock.flush()
     warnings.filterwarnings("error", category=GetPassWarning)
     print("\nVM Portal server setup (HTTPS only)\n")
     try:
