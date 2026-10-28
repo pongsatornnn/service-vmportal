@@ -39,6 +39,7 @@ import { AdminRoleForm, PrimaryAdminForm } from "./AdminRole";
 import { ConsolePage } from "./ConsolePage";
 import { SystemHealth, ResourceUsage } from "./SystemHealth";
 import { BootstrapSetup, ConnectionSetup } from "./Setup";
+import { wholeNumber } from "./wholeNumber";
 
 function App() {
   const [registrationPassword,setRegistrationPassword]=useState("");
@@ -259,6 +260,7 @@ function App() {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    if(["cpu","ram","disk"].some(k=>!/^\d+$/.test(String(data.get(k)??"").trim()))){setError("vCPU, RAM และ Disk ต้องเป็นจำนวนเต็มเท่านั้น");return;}
     if(vmAuthMethod==="password"&&!passwordValid(String(data.get("vm_password")??""),12)){setError("กรุณาตั้งรหัสผ่านให้ครบตาม checklist ทุกข้อ");return;}
     if (
       vmAuthMethod === "password" &&
@@ -636,7 +638,7 @@ function App() {
                         vCPU
                         <input
                           name="cpu"
-                          type="number"
+                          {...wholeNumber}
                           min={1}
                           max={32}
                           defaultValue={2}
@@ -647,7 +649,7 @@ function App() {
                         RAM (MiB)
                         <input
                           name="ram"
-                          type="number"
+                          {...wholeNumber}
                           min={512}
                           max={131072}
                           defaultValue={2048}
@@ -658,7 +660,7 @@ function App() {
                         Disk (GiB)
                         <input
                           name="disk"
-                          type="number"
+                          {...wholeNumber}
                           min={chosenTemplate?.min_disk_gb??1}
                           max={2048}
                           defaultValue={25}
@@ -750,7 +752,7 @@ function App() {
                 {deleteTarget&&<DeleteUserDialog user={deleteTarget} api={api} onClose={()=>setDeleteTarget(null)} onDone={()=>{setDeleteTarget(null);setNotice("รับคำขอลบผู้ใช้แล้ว ตรวจผลการลบ VM ได้ที่กิจกรรม");void refresh();}}/>}
                 {users.filter(u=>u.status!=="deleted").map((u) => (
                   <article className={`request section-head account-row${selectedQuotaUsers.includes(u.id)?" is-selected":""}`} key={u.id}>
-                    {selectingUsers&&!["deleted","deleting"].includes(u.status)&&<label className="checkbox-label account-select"><input type="checkbox" aria-label={`เลือก ${u.username}`} checked={selectedQuotaUsers.includes(u.id)} onChange={e=>setSelectedQuotaUsers(ids=>e.target.checked?[...ids,u.id]:ids.filter(id=>id!==u.id))}/></label>}
+                    {selectingUsers&&!["deleted","deleting"].includes(u.status)&&(primaryAdmin||u.role!=="admin")&&<label className="checkbox-label account-select"><input type="checkbox" aria-label={`เลือก ${u.username}`} checked={selectedQuotaUsers.includes(u.id)} onChange={e=>setSelectedQuotaUsers(ids=>e.target.checked?[...ids,u.id]:ids.filter(id=>id!==u.id))}/></label>}
                     <div className="account-info">
                       <strong>{u.username}</strong>
                       {(u.first_name||u.last_name)&&<p>{u.first_name} {u.last_name}</p>}
@@ -763,7 +765,7 @@ function App() {
                     {(()=>{
                       const live=!["deleted","deleting"].includes(u.status),self=u.id===dashboard?.user.id;
                       const items=[
-                        live&&<button key="quota" className="resource-edit" aria-label="แก้ไขสิทธิ์ใช้ทรัพยากร" disabled={busy} onClick={()=>{setRecoveryTarget(null);setQuotaTarget([u]);}}>ปรับทรัพยากร</button>,
+                        live&&(primaryAdmin||u.role!=="admin")&&<button key="quota" className="resource-edit" aria-label="แก้ไขสิทธิ์ใช้ทรัพยากร" disabled={busy} onClick={()=>{setRecoveryTarget(null);setQuotaTarget([u]);}}>ปรับทรัพยากร</button>,
                         u.status==="approved"&&!u.top_admin&&(u.role!=="admin"||(primaryAdmin&&(topAdmin||!u.primary_admin)))&&<button key="recovery" aria-label="ออกโค้ดกู้คืน Portal" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(u);}}>โค้ดกู้คืน</button>,
                         primaryAdmin&&u.status==="approved"&&!u.primary_admin&&!self&&<button key="role" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(null);setRoleTarget(u);}}>{u.role==="admin"?"ลดเป็นผู้ใช้":"ยกระดับเป็น Admin"}</button>,
                         topAdmin&&u.status==="approved"&&u.role==="admin"&&!u.top_admin&&!self&&<button key="primary" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(null);setPrimaryTarget(u);}}>{u.primary_admin?"ถอนสิทธิ์ผู้ดูแลหลัก":"มอบสิทธิ์ผู้ดูแลหลัก"}</button>,

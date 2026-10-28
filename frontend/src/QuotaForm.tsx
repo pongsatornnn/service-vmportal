@@ -2,6 +2,7 @@ import { FormDialog } from "./FormDialog";
 import { explainError } from "./errors";
 import { FormEvent, useState } from "react";
 import type { User } from "./types";
+import { wholeNumber } from "./wholeNumber";
 type API = <T>(path: string, body?: unknown) => Promise<T>;
 export function QuotaForm({api,users,onClose,onDone}: {api: API;users: User[];onClose:()=>void;onDone:()=>void}) {
   const user=users[0];
@@ -13,5 +14,5 @@ export function QuotaForm({api,users,onClose,onDone}: {api: API;users: User[];on
   }
   return <FormDialog title={title} busy={busy} onClose={onClose}><section className="panel quota-editor"><div className="section-head"><h3>{title}</h3><button type="button" disabled={busy} onClick={onClose}>ปิด</button></div>{users.length>1&&<p>ใช้ค่าเดียวกันกับทุกบัญชีที่เลือก: {users.map(u=>u.username).join(", ")} หากมีบัญชีใดใช้ทรัพยากรเกินค่าใหม่ จะไม่บันทึกทั้งชุด</p>}<form onSubmit={save}><div className="fields">{([
     ["quota_vms","จำนวน VM",1000],["quota_cpu","vCPU รวม",10000],["quota_ram","RAM รวม (MiB)",100000000],["quota_disk","Disk รวม (GiB)",10000000]
-  ] as const).map(([key,label,max])=><label key={key}>{label}<input name={key} type="number" min={0} max={max} step={1} defaultValue={Math.max(...users.map(u=>u[key]))} required/></label>)}</div>{error&&<p role="alert" className="error">{error}</p>}<button className="primary" disabled={busy}>บันทึกสิทธิ์ใช้ทรัพยากร</button></form></section></FormDialog>;
+  ] as const).map(([key,label,max])=><label key={key}>{label}<input name={key} {...wholeNumber} min={0} max={max} defaultValue={Math.max(...users.map(u=>u[key]))} required/></label>)}</div>{error&&<p role="alert" className="error">{error}</p>}<button className="primary" disabled={busy}>บันทึกสิทธิ์ใช้ทรัพยากร</button></form></section></FormDialog>;
 }

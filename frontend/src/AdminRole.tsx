@@ -11,9 +11,9 @@ export function AdminRoleForm({api,user,onClose,onDone}:{api:API;user:User;onClo
   const promote=user.role!=="admin";
   const title=promote?`ยกระดับ ${user.username} เป็น Admin`:`ลดสิทธิ์ ${user.username} เป็นผู้ใช้`;
   return <FormDialog title={title} busy={busy} onClose={onClose}><section className="panel recovery-panel role-panel">
-    <div className="section-head"><div className="help-heading"><h2>{title}</h2><HelpTip label="สิทธิ์ของ Admin">Admin ดู VM ของทุกคน อนุมัติคำขอ ปรับทรัพยากร และดูแลงานค้างได้ แต่ตั้งค่า Proxmox / Session จัดการ VM ของผู้อื่น และเปลี่ยนสิทธิ์หรือลบบัญชีไม่ได้ จนกว่าผู้ดูแลสูงสุดจะมอบสิทธิ์ผู้ดูแลหลักให้ ทุกการตัดสินใจจะแสดงชื่อผู้ทำให้ผู้ใช้เห็น</HelpTip></div><button type="button" disabled={busy} onClick={onClose}>ปิด</button></div>
+    <div className="section-head"><div className="help-heading"><h2>{title}</h2><HelpTip label="สิทธิ์ของ Admin">Admin ดู VM ของทุกคน อนุมัติคำขอ ปรับทรัพยากรของผู้ใช้ทั่วไป และดูแลงานค้างได้ แต่ตั้งค่า Proxmox / Session จัดการ VM ของผู้อื่น และเปลี่ยนสิทธิ์หรือลบบัญชีไม่ได้ จนกว่าผู้ดูแลสูงสุดจะมอบสิทธิ์ผู้ดูแลหลักให้ ทุกการตัดสินใจจะแสดงชื่อผู้ทำให้ผู้ใช้เห็น</HelpTip></div><button type="button" disabled={busy} onClick={onClose}>ปิด</button></div>
     {promote
-      ?<ul className="role-scope"><li>ดู VM และสถานะของทุกคน และอัปเดต IP ได้</li><li>อนุมัติ / ปฏิเสธบัญชี คำขอสร้าง VM และคำขอรีเซ็ตรหัส VM ได้</li><li>ปรับทรัพยากร ออกโค้ดกู้คืนให้ผู้ใช้ และทำต่อหรือปิดงานค้างได้</li><li><strong>ตั้งค่า Proxmox / Session, จัดการหรืออนุมัติลบ VM ของผู้อื่น, เปลี่ยนสิทธิ์และลบผู้ใช้ไม่ได้</strong></li></ul>
+      ?<ul className="role-scope"><li>ดู VM และสถานะของทุกคน และอัปเดต IP ได้</li><li>อนุมัติ / ปฏิเสธบัญชี คำขอสร้าง VM และคำขอรีเซ็ตรหัส VM ได้</li><li>ปรับทรัพยากรและออกโค้ดกู้คืนให้ผู้ใช้ทั่วไป (ไม่รวม Admin) และทำต่อหรือปิดงานค้างได้</li><li><strong>ตั้งค่า Proxmox / Session, จัดการหรืออนุมัติลบ VM ของผู้อื่น, เปลี่ยนสิทธิ์และลบผู้ใช้ไม่ได้</strong></li></ul>
       :<p className="muted">บัญชีนี้จะกลับเป็นผู้ใช้ทั่วไปทันที และเข้าหน้าผู้ดูแลไม่ได้อีก ประวัติการตัดสินใจเดิมยังแสดงชื่อนี้ไว้</p>}
     <form className="sensitive-fields" data-form-type="other" autoComplete="off" onSubmit={async e=>{
       e.preventDefault();if(busy||!proofInput.current)return;

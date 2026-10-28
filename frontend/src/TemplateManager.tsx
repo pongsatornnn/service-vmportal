@@ -8,6 +8,7 @@ import { ResourcePicker } from "./ResourcePicker";
 import { thaiTime } from "./time";
 import { Toast } from "./Toast";
 import type { Template } from "./types";
+import { wholeNumber } from "./wholeNumber";
 
 type API = <T>(path: string, body?: unknown) => Promise<T>;
 type Draft = {name:string;description:string;vmid:string;disk_device:string;min_disk_gb:string};
@@ -98,7 +99,7 @@ function TemplateForm({api,template,onClose,onSaved}:{api:API;template:Template|
       <label><span className="field-title">Template ใน Proxmox (VMID)</span><ResourcePicker id="template-vmid" label="Template VMID" value={draft.vmid} options={templateOptions} numeric min={100} max={999999999} disabled={busy} onChange={value=>setDraft({...draft,vmid:value,disk_device:"",min_disk_gb:""})} onCommit={value=>void discover(value)}/></label>
       <div className="fields">
         <label><span className="field-title">Boot disk</span><ResourcePicker id="template-disk" label="Boot disk" value={draft.disk_device} options={diskOptions} pattern="(scsi|sata|virtio)[0-9]{1,2}" disabled={busy} onChange={value=>setDraft({...draft,disk_device:value,min_disk_gb:String(Math.max(Number(draft.min_disk_gb)||0,(choices?.disks.find(d=>d.id===value)?.minimum_gib)??1))})}/></label>
-        <label><span className="field-title">Disk ขั้นต่ำ (GiB)</span><input name="template_min_disk" type="number" required min={minimum} max={2048} value={draft.min_disk_gb} onChange={e=>setDraft({...draft,min_disk_gb:e.target.value})}/></label>
+        <label><span className="field-title">Disk ขั้นต่ำ (GiB)</span><input name="template_min_disk" {...wholeNumber} required min={minimum} max={2048} value={draft.min_disk_gb} onChange={e=>setDraft({...draft,min_disk_gb:e.target.value})}/></label>
       </div>
       <p className={`template-detected${detected?" found":""}`} role="status">{looking?"กำลังอ่าน Boot disk และขนาด Disk จาก Proxmox…":!vmidChosen?"เลือก Template ก่อน ระบบจะดึง Boot disk และขนาด Disk จาก Proxmox ให้":detected?`ดึงจาก Proxmox แล้ว: Boot disk ${detected.id} ขนาด ${detected.minimum_gib??"ไม่ทราบ"} GiB · Disk ขั้นต่ำต้องไม่น้อยกว่านี้ ปรับให้มากขึ้นได้`:choices?"อ่านขนาด Disk ของ Template นี้ไม่ได้ กรุณากรอก Boot disk และ Disk ขั้นต่ำเอง":"อ่านรายการจาก Proxmox ไม่ได้ กรุณากรอก Boot disk และ Disk ขั้นต่ำเอง"}</p>
       <p className="muted template-form-note">{template?.verified?"ถ้าแก้ VMID, Boot disk หรือ Disk ขั้นต่ำ ต้องตรวจสอบใหม่และจะปิดให้ขอชั่วคราว":"บันทึกแล้วกดตรวจสอบก่อนเปิดให้ขอ"}</p>

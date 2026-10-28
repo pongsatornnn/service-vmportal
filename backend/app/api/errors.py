@@ -156,6 +156,10 @@ MESSAGES = {
     "Token secret required for real connection": "กรุณาระบุ Token Secret ก่อนเชื่อมต่อจริง",
     "Unsupported SSH public key": "ชนิด SSH Key ไม่รองรับ กรุณาใช้ ed25519, RSA หรือ ECDSA ที่รองรับ",
     "Invalid SSH public key": "SSH Public Key ไม่ถูกต้อง กรุณาคัดลอก Public Key ให้ครบหนึ่งบรรทัด",
+    "Guest Agent is unavailable; check agent=1, running service and VM.GuestAgent.Audit": "QEMU Guest Agent ใน VM ไม่ตอบสนอง จึงรีเซ็ตรหัสและอ่าน IP ไม่ได้ ให้ติดตั้งและเปิด qemu-guest-agent ภายใน VM (sudo apt install -y qemu-guest-agent แล้ว sudo systemctl enable --now qemu-guest-agent)",
+    "Guest Agent does not enable guest-set-user-password": "QEMU Guest Agent ใน VM ปิดคำสั่งตั้งรหัสผ่านไว้ กรุณาตรวจการตั้งค่า qemu-guest-agent ภายใน VM",
+    "VM must be running for Guest Agent password reset": "ต้องเปิด VM ก่อนจึงจะรีเซ็ตรหัสได้",
+    "Only primary administrators set quotas for admins": "Admin ทั่วไปปรับทรัพยากรได้เฉพาะบัญชีผู้ใช้ทั่วไป",
 }
 
 
@@ -180,6 +184,12 @@ def public_message(detail, status=400):
                 "(นับรวมคำขอที่รออนุมัติ) กรุณาลดค่าที่ขอหรือขอผู้ดูแลเพิ่มโควตา"
             )
         return f"{label}เกินโควตาที่ได้รับ กรุณาลดทรัพยากรหรือขอผู้ดูแลเพิ่มโควตา"
+    if text.startswith("Password reset requires VM.GuestAgent.Unrestricted at "):
+        return (
+            "Token ของ Portal ยังไม่มีสิทธิ์ VM.GuestAgent.Unrestricted ที่ "
+            + text.split(" at ", 1)[1].split(";", 1)[0]
+            + " จึงรีเซ็ตรหัส VM ไม่ได้ กรุณาให้ผู้ดูแลหลักเพิ่มสิทธิ์ใน Proxmox"
+        )
     if text.startswith("Cannot read node health;"):
         return (
             "อ่านสุขภาพ Proxmox ไม่สำเร็จ กรุณาตรวจการเชื่อมต่อและสิทธิ์ Sys.Audit บน "
