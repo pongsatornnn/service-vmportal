@@ -24,6 +24,7 @@ import { NewPasswordFields, PasswordForm, IssueRecoveryForm, VMPasswordForm } fr
 import type { User, VM, Runtime, Deletion, VMRequest, Job, Audit, Dashboard, PasswordReset } from "./types";
 import { SessionSettings } from "./SessionSettings";
 import { AdminGuide } from "./AdminGuide";
+import { UserGuide } from "./UserGuide";
 import { statusLabel, operationLabel } from "./labels";
 import { QuotaDefaultsForm } from "./QuotaDefaults";
 import { QuotaForm } from "./QuotaForm";
@@ -34,7 +35,7 @@ import { TemplateManager } from "./TemplateManager";
 import type { Template } from "./types";
 import { defaultDraft, QuotaCards, quotaShortfall, type Draft } from "./QuotaCheck";
 import { jobDone, trackJobs, trackRequests, useRequestUpdates, type StatusSection } from "./requestUpdates";
-import { AdminRoleForm } from "./AdminRole";
+import { AdminRoleForm, PrimaryAdminForm } from "./AdminRole";
 import { ConsolePage } from "./ConsolePage";
 import { SystemHealth, ResourceUsage } from "./SystemHealth";
 import { BootstrapSetup, ConnectionSetup } from "./Setup";
@@ -50,6 +51,8 @@ function App() {
   const [selectedQuotaUsers,setSelectedQuotaUsers]=useState<number[]>([]);
   const [selectingUsers,setSelectingUsers]=useState(false);
   const [recoveryTarget, setRecoveryTarget] = useState<User | null>(null);
+  const [primaryTarget, setPrimaryTarget] = useState<User | null>(null);
+  const [guideSection, setGuideSection] = useState<"admin"|"user">("admin");
   const [roleTarget, setRoleTarget] = useState<User | null>(null);
   const [statusSection, setStatusSection] = useState<StatusSection>("create");
   const [approvalSection, setApprovalSection] = useState<ApprovalSection>("create");
@@ -179,7 +182,8 @@ function App() {
       if (epoch !== sessionEpoch.current || token !== activeToken.current) return;
       setUsers(u);
       setLogs(l);
-    } else if(!["overview","requests","status","activity","password"].includes(tab)) setTab("overview");
+      if(tab==="setup"&&!d.user.primary_admin) setTab("overview");
+    } else if(!["overview","requests","status","activity","password","guide"].includes(tab)) setTab("overview");
     if(epoch===sessionEpoch.current&&token===activeToken.current)setSessionReady(true);
   }
   const runtimeKey = vms.map(v => `${v.id}:${v.status}`).join(",") + jobs.map(j => `${j.id}:${statusLabel(j.state)}`).join(",");
@@ -310,7 +314,11 @@ function App() {
     });
   }
   const admin = dashboard?.user.role === "admin";
+  // Primary admins change the Proxmox setup and operate every VM; other admins
+  // view everything and decide requests. Only the top admin grants primary rights.
   const primaryAdmin = admin && !!dashboard?.user.primary_admin;
+  const topAdmin = admin && !!dashboard?.user.top_admin;
+  const canManage = (vm: VM) => primaryAdmin || vm.owner_id === dashboard?.user.id;
   // After submitting, admins land on the matching approval queue; users on their request status.
   function showRequest(section: StatusSection) {
     if (dashboard?.user.role === "admin") { setApprovalSection(section); setTab("approvals"); }
@@ -363,13 +371,13 @@ function App() {
                     </div>
                     {j.created_at&&<p className="job-times">เริ่ม {thaiTime(j.created_at)}{j.finished_at&&` · ${j.state==="needs_review"?"หยุดเมื่อ":"เสร็จ"} ${thaiTime(j.finished_at)}`}</p>}
                     {admin && <details className="technical-details"><summary>รายละเอียดงาน</summary><p className="muted">Checkpoint: {j.checkpoint}</p></details>}
-                    {j.operation==="provision"&&j.state==="needs_review"&&["clone_accepted","configure_sending","resume_after_clone"].includes(j.checkpoint)&&<p className="muted">Clone เครื่องไว้แล้ว แต่ยังเตรียมใช้งานไม่ครบ {admin?"กดตรวจและทำต่อจาก Clone เดิมด้านล่าง ระบบจะตรวจ Task และ VM ก่อนทำงานต่อ":"รอผู้ดูแลตรวจและทำต่อจากเครื่องเดิม ไม่ต้องส่งคำขอสร้างใหม่"}</p>}
-                    {j.operation==="provision"&&j.state==="needs_review"&&configuredResumeCheckpoints.includes(j.checkpoint)&&<p className="muted">ตั้งค่าเครื่องเสร็จแล้ว แต่ขั้นขยาย Disk หรือเปิดเครื่องยังไม่ยืนยัน {admin?"กดตรวจและทำต่อด้านล่าง ระบบจะตรวจสถานะจริงใน Proxmox ก่อนทำเฉพาะขั้นที่เหลือ":"รอผู้ดูแลตรวจและทำต่อจากเครื่องเดิม ไม่ต้องส่งคำขอสร้างใหม่"}</p>}
+                    {j.operation==="provision"&&j.state==="needs_review"&&["clone_accepted","configure_sending","resume_after_clone"].includes(j.checkpoint)&&<p className="muted">Clone เครื่องไว้แล้ว แต่ยังเตรียมใช้งานไม่ครบ {primaryAdmin?"กดตรวจและทำต่อจาก Clone เดิมด้านล่าง ระบบจะตรวจ Task และ VM ก่อนทำงานต่อ":"รอผู้ดูแลตรวจและทำต่อจากเครื่องเดิม ไม่ต้องส่งคำขอสร้างใหม่"}</p>}
+                    {j.operation==="provision"&&j.state==="needs_review"&&configuredResumeCheckpoints.includes(j.checkpoint)&&<p className="muted">ตั้งค่าเครื่องเสร็จแล้ว แต่ขั้นขยาย Disk หรือเปิดเครื่องยังไม่ยืนยัน {primaryAdmin?"กดตรวจและทำต่อด้านล่าง ระบบจะตรวจสถานะจริงใน Proxmox ก่อนทำเฉพาะขั้นที่เหลือ":"รอผู้ดูแลตรวจและทำต่อจากเครื่องเดิม ไม่ต้องส่งคำขอสร้างใหม่"}</p>}
                     {j.state==="failed"&&<p className="decision-reason"><strong>ข้อความจาก Admin{j.reviewed_by_name?` ${j.reviewed_by_name}`:""}:</strong> {j.user_message?.trim()||"กรุณาติดต่อผู้ดูแลระบบ"}</p>}
                     {j.state!=="failed"&&j.reviewed_by_name&&<p className="decided-by">สั่งทำต่อโดย Admin {j.reviewed_by_name}</p>}
                     {j.error && j.state!=="failed" && <p className="error">{jobError(j.error,j.operation)}</p>}
                     {j.error && admin && <details className="technical-details"><summary>ข้อมูลสำหรับผู้ดูแล</summary><small>{j.error}</small></details>}
-                    {admin&&needsAttention(j)&&<div className="job-recovery-actions">
+                    {primaryAdmin&&needsAttention(j)&&<div className="job-recovery-actions">
                       {recoverableProvisions.some(job=>job.id===j.id)&&<button className="primary" disabled={busy} onClick={()=>void resumeProvision(j)}>{recoverableClones.some(job=>job.id===j.id)?"ตรวจและทำต่อจาก Clone เดิม (Admin)":"ตรวจและทำต่อจากขั้นที่ค้าง (Admin)"}</button>}
                       <button className="danger" disabled={busy} onClick={()=>void closeJob(j)}>ทำต่อไม่ได้ · ปิดงานและแจ้งผู้ใช้ (Admin)</button>
                     </div>}
@@ -378,8 +386,8 @@ function App() {
 
   );
 
-  const approvalCount = users.filter(u => u.status === "pending").length + requests.filter(r => r.status === "pending").length + deletions.filter(r => r.status === "pending").length + passwordResets.filter(r => r.status === "pending").length;
-  const titles: Record<string,string> = {overview:"เครื่องเสมือน",requests:"ขอสร้าง VM",status:"สถานะคำขอ",approvals:"รออนุมัติ",activity:"กิจกรรม",accounts:"ผู้ใช้",setup:"ตั้งค่า",guide:"คู่มือผู้ดูแลระบบ",audit:"บันทึกการใช้งาน",password:"รหัสผ่านของฉัน"};
+  const approvalCount = users.filter(u => u.status === "pending").length + requests.filter(r => r.status === "pending").length + (primaryAdmin ? deletions.filter(r => r.status === "pending").length : 0) + passwordResets.filter(r => r.status === "pending").length;
+  const titles: Record<string,string> = {overview:"เครื่องเสมือน",requests:"ขอสร้าง VM",status:"สถานะคำขอ",approvals:"รออนุมัติ",activity:"กิจกรรม",accounts:"ผู้ใช้",setup:"ตั้งค่า",guide:admin?"คู่มือ":"คู่มือการใช้งาน",audit:"บันทึกการใช้งาน",password:"รหัสผ่านของฉัน"};
   if (firstAdmin === null || (token && !sessionReady))
     return <div className="boot-screen"><main className="boot-card"><img src={at("portal-mark.svg")} width="52" height="52" alt=""/><h1>VM Portal</h1><p role="status">กำลังโหลดหน้าของคุณ…</p>{error&&<><p className="alert error" role="alert">{error}</p><button onClick={()=>window.location.reload()}>ลองใหม่</button><button onClick={signOut}>กลับไปเข้าสู่ระบบ</button></>}</main></div>;
   if (firstAdmin)
@@ -397,14 +405,14 @@ function App() {
       <main>
         <header className={!token ? "login-heading" : "app-header"}>
           <div className="page-heading">
-            {token&&<Navigation active={tab} items={["overview","requests","status","activity",...(admin?["approvals","accounts","setup","guide","audit"]:[])].map(id=>({id,label:titles[id],count:id==="approvals"?approvalCount:id==="status"?updateCount:undefined}))} onNavigate={id=>{setTab(id);if(id==="setup")setSettingsSection("connection");setNotice("");setError("");}}/>}
+            {token&&<Navigation active={tab} items={["overview","requests","status","activity",...(admin?["approvals","accounts",...(primaryAdmin?["setup"]:[]),"guide","audit"]:["guide"])].map(id=>({id,label:titles[id],count:id==="approvals"?approvalCount:id==="status"?updateCount:undefined}))} onNavigate={id=>{setTab(id);if(id==="setup")setSettingsSection("connection");setNotice("");setError("");}}/>}
             <h1>
               {token ? titles[tab] : "ยินดีต้อนรับสู่ VM Portal"}
             </h1>
           </div>
           {token && (
             <div className="identity">
-              <SystemStatus setup={dashboard?.setup} admin={admin} onSetup={()=>{setTab("setup");setSettingsSection("connection");setNotice("");setError("");}}/>
+              <SystemStatus setup={dashboard?.setup} admin={admin} canSetup={primaryAdmin} onSetup={()=>{setTab("setup");setSettingsSection("connection");setNotice("");setError("");}}/>
               <ActionMenu className="account-menu" label={dashboard?.user.username ?? "บัญชีของฉัน"} ariaLabel="เมนูบัญชีของฉัน"><button onClick={() => setTab("password")}>เปลี่ยนรหัสผ่าน Portal</button>
               <button
                 title="ออกจากระบบและยกเลิก Login ของบัญชีนี้ทุกอุปกรณ์"
@@ -476,9 +484,9 @@ function App() {
             ].map(([label,value])=><section className="panel stat" key={String(label)}><span>{label}</span><strong>{value}</strong></section>)}</div>}
             {dashboard?.execution_mode === "mock" && <p className="muted">โหมดจำลอง — ไม่มีคำสั่งส่งไป Proxmox จริง</p>}
             {tab === "password" && <PasswordForm api={api} onDone={() => {signOut(); setNotice("เปลี่ยนรหัส Portal แล้ว กรุณา Login ใหม่");}} />}
-            {admin && tab === "setup" && <><div className="section-tabs">{([["connection","Proxmox"],["templates","Template"],["session","Session"]] as const).map(([id,name])=><button key={id} className={settingsSection===id?"selected":""} onClick={()=>setSettingsSection(id)}>{name}</button>)}</div>{settingsSection==="connection"?<ConnectionSetup api={api} changed={refresh}/>:settingsSection==="templates"?<TemplateManager api={api}/>:<SessionSettings api={api}/>}</>}
-            {admin && tab === "guide" && <AdminGuide api={api}/>}
-            {admin && tab === "approvals" && <ApprovalInbox users={users} requests={requests} deletions={deletions} resets={passwordResets} vms={vms} api={api} busy={busy} decide={decide} act={act} refresh={refresh} section={approvalSection} setSection={setApprovalSection}/>}
+            {primaryAdmin && tab === "setup" && <><div className="section-tabs">{([["connection","Proxmox"],["templates","Template"],["session","Session"]] as const).map(([id,name])=><button key={id} className={settingsSection===id?"selected":""} onClick={()=>setSettingsSection(id)}>{name}</button>)}</div>{settingsSection==="connection"?<ConnectionSetup api={api} changed={refresh}/>:settingsSection==="templates"?<TemplateManager api={api}/>:<SessionSettings api={api}/>}</>}
+            {tab === "guide" && (admin ? <><div className="section-tabs">{([["admin","คู่มือผู้ดูแลระบบ"],["user","คู่มือผู้ใช้"]] as const).map(([id,name])=><button key={id} className={guideSection===id?"selected":""} onClick={()=>setGuideSection(id)}>{name}</button>)}</div>{guideSection==="admin"?<AdminGuide api={api}/>:<UserGuide/>}</> : <UserGuide/>)}
+            {admin && tab === "approvals" && <ApprovalInbox canDelete={primaryAdmin} users={users} requests={requests} deletions={deletions} resets={passwordResets} vms={vms} api={api} busy={busy} decide={decide} act={act} refresh={refresh} section={approvalSection} setSection={setApprovalSection}/>}
             {tab === "overview" && (
               <>
                 {admin&&<SystemHealth api={api}/>}
@@ -518,7 +526,7 @@ function App() {
                             </td>
                             <td data-label="VMID">{vm.vmid ?? "—"}</td>
                             <td data-label="สถานะ">
-                              <span className={"badge " + (vm.status === "ready" && runtime[vm.id]?.power === "stopped" ? "stopped" : vm.status)}>
+                              <span className={"badge " + (vm.status !== "ready" ? vm.status : runtime[vm.id]?.power === "stopped" ? "stopped" : runtime[vm.id]?.power === "running" ? "ready" : "reading")}>
                                 {vm.status === "ready" ? runtime[vm.id]?.power === "running" ? "กำลังทำงาน" : runtime[vm.id]?.power === "stopped" ? "ปิดเครื่อง" : "กำลังอ่านสถานะ" : vm.status === "deleted" ? "ลบแล้ว" : vm.status === "missing" ? "ไม่พบ VM ใน Proxmox" : vm.status === "needs_review" ? "ต้องตรวจสอบ" : "กำลังเตรียม"}
                               </span>
                             </td>
@@ -529,12 +537,12 @@ function App() {
                             <td data-label="CPU / RAM"><ResourceUsage runtime={vm.status==="ready"?runtime[vm.id]:undefined}/></td>
                             <td><div className="vm-actions">
                               <ActionMenu className="vm-action-menu" label="จัดการ" ariaLabel={`จัดการ ${vm.hostname}`}>
-                              {admin&&vm.status==="needs_review"&&recoverableProvisions.some(job=>job.vm_id===vm.id)&&<button disabled={busy} onClick={()=>void resumeProvision(recoverableProvisions.find(job=>job.vm_id===vm.id)!)}>{recoverableClones.some(job=>job.vm_id===vm.id)?"ตรวจและทำต่อจาก Clone เดิม (Admin)":"ตรวจและทำต่อจากขั้นที่ค้าง (Admin)"}</button>}
-                              {admin&&vm.status==="needs_review"&&jobs.some(job=>job.vm_id===vm.id&&needsAttention(job))&&<button className="danger" disabled={busy} onClick={()=>void closeJob(jobs.find(job=>job.vm_id===vm.id&&needsAttention(job))!)}>ทำต่อไม่ได้ · ปิดงานและแจ้งผู้ใช้ (Admin)</button>}
+                              {primaryAdmin&&vm.status==="needs_review"&&recoverableProvisions.some(job=>job.vm_id===vm.id)&&<button disabled={busy} onClick={()=>void resumeProvision(recoverableProvisions.find(job=>job.vm_id===vm.id)!)}>{recoverableClones.some(job=>job.vm_id===vm.id)?"ตรวจและทำต่อจาก Clone เดิม (Admin)":"ตรวจและทำต่อจากขั้นที่ค้าง (Admin)"}</button>}
+                              {primaryAdmin&&vm.status==="needs_review"&&jobs.some(job=>job.vm_id===vm.id&&needsAttention(job))&&<button className="danger" disabled={busy} onClick={()=>void closeJob(jobs.find(job=>job.vm_id===vm.id&&needsAttention(job))!)}>ทำต่อไม่ได้ · ปิดงานและแจ้งผู้ใช้ (Admin)</button>}
                               <button type="button" aria-label={`อัปเดต IP / สถานะ ${vm.hostname}`} disabled={busy||(!["ready","missing","needs_review"].includes(vm.status)||vm.vmid===null)} onClick={()=>void act(async()=>{const presence=await api<{status:string}>(`/vms/${vm.id}/presence`,{});await refresh();if(presence.status==="ready"){const info=await api<Runtime>(`/vms/${vm.id}/runtime`);setRuntime(previous=>({...previous,[vm.id]:info}));}})}>{vm.status==="ready"?"อัปเดต IP":"ตรวจสถานะ"}</button>
-                              {vm.status === "ready" && ["running","stopped"].includes(runtime[vm.id]?.power) && <button className={runtime[vm.id]?.power==="running"?"":"primary"} disabled={busy || jobs.some(j=>j.vm_id===vm.id&&["queued","running"].includes(j.state))} onClick={async()=>{const action=runtime[vm.id]?.power==="running"?"shutdown":"start";if(action==="shutdown"&&!(await confirmAction(`ยืนยันปิดเครื่อง ${vm.hostname}? กรุณาบันทึกงานใน VM ก่อนดำเนินการ`)))return;void act(async()=>{await api(`/vms/${vm.id}/actions`,{action});await refresh();});}}>{runtime[vm.id]?.power==="running"?"ปิดเครื่อง":"เปิดเครื่อง"}</button>}
-                              {admin&&(vm.status==="missing"||vm.can_confirm_external_deletion)&&<button className="danger" disabled={busy} onClick={async()=>{const name=await promptAction(`ยืนยันว่าคุณตรวจใน Proxmox แล้วว่า ${vm.hostname} ถูกลบจริง หาก Portal อ่านสถานะ Cluster ไม่ได้ จะใช้การยืนยันของคุณเพื่อปิดรายการและคืนสิทธิ์ใช้ทรัพยากร โดยไม่ส่งคำสั่งลบ VM`,{expected:vm.hostname,danger:true});if(name===null)return;void act(async()=>{await api(`/admin/vms/${vm.id}/confirm-external-deletion`,{confirm_hostname:name});setNotice("ยืนยันการลบจากภายนอกและคืนสิทธิ์ใช้ทรัพยากรแล้ว");await refresh();});}}>ยืนยันการลบจากภายนอก</button>}
-                              {(runtime[vm.id]?.power==="running"?["reboot","stop"]:[]).map((action) => (
+                              {canManage(vm) && vm.status === "ready" && ["running","stopped"].includes(runtime[vm.id]?.power) && <button className={runtime[vm.id]?.power==="running"?"":"primary"} disabled={busy || jobs.some(j=>j.vm_id===vm.id&&["queued","running"].includes(j.state))} onClick={async()=>{const action=runtime[vm.id]?.power==="running"?"shutdown":"start";if(action==="shutdown"&&!(await confirmAction(`ยืนยันปิดเครื่อง ${vm.hostname}? กรุณาบันทึกงานใน VM ก่อนดำเนินการ`)))return;void act(async()=>{await api(`/vms/${vm.id}/actions`,{action});await refresh();});}}>{runtime[vm.id]?.power==="running"?"ปิดเครื่อง":"เปิดเครื่อง"}</button>}
+                              {primaryAdmin&&(vm.status==="missing"||vm.can_confirm_external_deletion)&&<button className="danger" disabled={busy} onClick={async()=>{const name=await promptAction(`ยืนยันว่าคุณตรวจใน Proxmox แล้วว่า ${vm.hostname} ถูกลบจริง หาก Portal อ่านสถานะ Cluster ไม่ได้ จะใช้การยืนยันของคุณเพื่อปิดรายการและคืนสิทธิ์ใช้ทรัพยากร โดยไม่ส่งคำสั่งลบ VM`,{expected:vm.hostname,danger:true});if(name===null)return;void act(async()=>{await api(`/admin/vms/${vm.id}/confirm-external-deletion`,{confirm_hostname:name});setNotice("ยืนยันการลบจากภายนอกและคืนสิทธิ์ใช้ทรัพยากรแล้ว");await refresh();});}}>ยืนยันการลบจากภายนอก</button>}
+                              {(canManage(vm)&&runtime[vm.id]?.power==="running"?["reboot","stop"]:[]).map((action) => (
                                 <button
                                   disabled={
                                     busy ||
@@ -566,7 +574,7 @@ function App() {
                                   {{start:"เปิดเครื่อง",shutdown:"ปิดเครื่อง",stop:"บังคับปิดเครื่อง",reboot:"Restart"}[action]}
                                 </button>
                               ))}
-                              <button disabled={busy || vm.status !== "ready"} onClick={() => {
+                              {canManage(vm)&&<><button disabled={busy || vm.status !== "ready"} onClick={() => {
                                 const tab=window.open('', '_blank');
                                 if(!tab){setError("เบราว์เซอร์บล็อกแท็บใหม่ กรุณาอนุญาต popup สำหรับเว็บนี้แล้วลองอีกครั้ง");return;}
                                 tab.opener=null;
@@ -580,7 +588,7 @@ function App() {
                                   await api(`/vms/${vm.id}/deletion-requests`, {reason});
                                   setNotice("ส่งคำขอลบแล้ว รอ Admin อนุมัติ"); showRequest("delete"); await refresh();
                                 });
-                              }}>ขอลบ VM</button>
+                              }}>{vm.owner_id===dashboard?.user.id?"ขอลบ VM":"ขอลบ VM (ผู้ดูแลหลัก)"}</button></>}
                               </ActionMenu></div>
                             </td>
                           </tr>
@@ -728,7 +736,7 @@ function App() {
             {tab === "status" && dashboard && <RequestStatus me={dashboard.user} admin={admin} users={users} requests={requests} deletions={deletions} resets={passwordResets} vms={vms} jobs={jobs} section={statusSection} setSection={setStatusSection} unseen={updates.unseen} markSeen={updates.markSeen} recentlySeen={updates.recentlySeen} busy={busy} onNewRequest={()=>setTab("requests")} onCancelReset={id=>void act(async()=>{await api(`/vm-password-resets/${id}/cancel`,{});setNotice("ยกเลิกคำขอรีเซ็ตแล้ว");await refresh();})}/>}
             {tab === "accounts" && admin && (
               <section className="panel accounts-panel">
-                <div className="section-head accounts-heading"><div><h2>จัดการผู้ใช้</h2><p className="muted">{primaryAdmin?"กำหนดสิทธิ์ใช้ทรัพยากร ยกระดับสิทธิ์ และจัดการบัญชี":"กำหนดสิทธิ์ใช้ทรัพยากร · การลบผู้ใช้และเปลี่ยนสิทธิ์สงวนไว้สำหรับผู้ดูแลหลัก"}</p></div><div className="accounts-heading-actions"><button type="button" aria-pressed={selectingUsers} onClick={()=>{setSelectingUsers(v=>!v);setSelectedQuotaUsers([]);}}>{selectingUsers?"ยกเลิกการเลือก":"เลือกหลายคน"}</button><button type="button" aria-label="สิทธิ์ใช้ทรัพยากรเริ่มต้น" onClick={()=>setShowQuotaDefaults(v=>!v)}>ค่าเริ่มต้น</button><HistoryPopup title="ประวัติผู้ใช้ที่ลบแล้ว" count={users.filter(u=>u.status==="deleted").length}>{users.filter(u=>u.status==="deleted").map(u=><article className="request" key={u.id}><div className="section-head"><strong>{u.username}</strong><span className="badge deleted">ลบแล้ว</span></div><p>{u.first_name} {u.last_name}</p><p className="muted">{u.role==="admin"?"ผู้ดูแล":"ผู้ใช้"} · สิทธิ์ใช้ทรัพยากร {u.quota_vms} VM</p></article>)}</HistoryPopup></div></div>
+                <div className="section-head accounts-heading"><div><h2>จัดการผู้ใช้</h2><p className="muted">{primaryAdmin?"กำหนดสิทธิ์ใช้ทรัพยากร ยกระดับสิทธิ์ และจัดการบัญชี":"ดูบัญชีและอนุมัติผู้สมัครได้ · การปรับทรัพยากร เปลี่ยนสิทธิ์ และลบผู้ใช้สงวนไว้สำหรับผู้ดูแลหลัก"}</p></div><div className="accounts-heading-actions">{primaryAdmin&&<><button type="button" aria-pressed={selectingUsers} onClick={()=>{setSelectingUsers(v=>!v);setSelectedQuotaUsers([]);}}>{selectingUsers?"ยกเลิกการเลือก":"เลือกหลายคน"}</button><button type="button" aria-label="สิทธิ์ใช้ทรัพยากรเริ่มต้น" onClick={()=>setShowQuotaDefaults(v=>!v)}>ค่าเริ่มต้น</button></>}<HistoryPopup title="ประวัติผู้ใช้ที่ลบแล้ว" count={users.filter(u=>u.status==="deleted").length}>{users.filter(u=>u.status==="deleted").map(u=><article className="request" key={u.id}><div className="section-head"><strong>{u.username}</strong><span className="badge deleted">ลบแล้ว</span></div><p>{u.first_name} {u.last_name}</p><p className="muted">{u.role==="admin"?"ผู้ดูแล":"ผู้ใช้"} · สิทธิ์ใช้ทรัพยากร {u.quota_vms} VM</p></article>)}</HistoryPopup></div></div>
                 {selectingUsers&&<div className="resource-toolbar">
                   <label className="checkbox-label"><input type="checkbox" checked={users.some(u=>!["deleted","deleting"].includes(u.status))&&users.filter(u=>!["deleted","deleting"].includes(u.status)).every(u=>selectedQuotaUsers.includes(u.id))} onChange={e=>setSelectedQuotaUsers(e.target.checked?users.filter(u=>!["deleted","deleting"].includes(u.status)).map(u=>u.id):[])}/>เลือกทั้งหมด</label>
                   <span>เลือก {users.filter(u=>selectedQuotaUsers.includes(u.id)&&!["deleted","deleting"].includes(u.status)).length} คน</span>
@@ -737,6 +745,7 @@ function App() {
                 {showQuotaDefaults&&<QuotaDefaultsForm api={api} onClose={()=>setShowQuotaDefaults(false)} changed={refresh}/>}
                 {quotaTarget && <QuotaForm key={quotaTarget.map(u=>u.id).join(",")} api={api} users={quotaTarget} onClose={()=>setQuotaTarget(null)} onDone={()=>{setQuotaTarget(null);setSelectedQuotaUsers([]);setNotice("บันทึกสิทธิ์ใช้ทรัพยากรแล้ว");void refresh();}}/>}
                 {roleTarget && <AdminRoleForm key={roleTarget.id} api={api} user={roleTarget} onClose={()=>setRoleTarget(null)} onDone={changed=>{setRoleTarget(null);setNotice(changed.role==="admin"?`ยกระดับ ${changed.username} เป็น Admin แล้ว`:`ลดสิทธิ์ ${changed.username} เป็นผู้ใช้แล้ว`);void refresh();}}/>}
+                {primaryTarget && <PrimaryAdminForm key={primaryTarget.id} api={api} user={primaryTarget} onClose={()=>setPrimaryTarget(null)} onDone={changed=>{setPrimaryTarget(null);setNotice(changed.primary_admin?`มอบสิทธิ์ผู้ดูแลหลักให้ ${changed.username} แล้ว`:`ถอนสิทธิ์ผู้ดูแลหลักของ ${changed.username} แล้ว`);void refresh();}}/>}
                 {recoveryTarget && <IssueRecoveryForm key={recoveryTarget.id} api={api} user={recoveryTarget} onClose={() => setRecoveryTarget(null)} />}
                 {deleteTarget&&<DeleteUserDialog user={deleteTarget} api={api} onClose={()=>setDeleteTarget(null)} onDone={()=>{setDeleteTarget(null);setNotice("รับคำขอลบผู้ใช้แล้ว ตรวจผลการลบ VM ได้ที่กิจกรรม");void refresh();}}/>}
                 {users.filter(u=>u.status!=="deleted").map((u) => (
@@ -746,7 +755,7 @@ function App() {
                       <strong>{u.username}</strong>
                       {(u.first_name||u.last_name)&&<p>{u.first_name} {u.last_name}</p>}
                       <p className="muted">
-                        {u.role==="admin"?<span className={`badge role-badge${u.primary_admin?" primary":""}`}>{u.primary_admin?"ผู้ดูแลหลัก":"Admin (ยกระดับ)"}</span>:"ผู้ใช้"} · {statusLabel(u.status)} · สิทธิ์ใช้ทรัพยากร {u.quota_vms} VM {u.quota_customized&&<span className="badge">กำหนดเอง</span>}
+                        {u.role==="admin"?<span className={`badge role-badge${u.primary_admin?" primary":""}`}>{u.top_admin?"ผู้ดูแลสูงสุด":u.primary_admin?"ผู้ดูแลหลัก":"Admin"}</span>:"ผู้ใช้"} · {statusLabel(u.status)} · สิทธิ์ใช้ทรัพยากร {u.quota_vms} VM {u.quota_customized&&<span className="badge">กำหนดเอง</span>}
                       </p>
                     </div>
                     <div className="account-actions">
@@ -754,9 +763,10 @@ function App() {
                     {(()=>{
                       const live=!["deleted","deleting"].includes(u.status),self=u.id===dashboard?.user.id;
                       const items=[
-                        live&&<button key="quota" className="resource-edit" aria-label="แก้ไขสิทธิ์ใช้ทรัพยากร" disabled={busy} onClick={()=>{setRecoveryTarget(null);setQuotaTarget([u]);}}>ปรับทรัพยากร</button>,
-                        u.status==="approved"&&(primaryAdmin||u.role!=="admin")&&<button key="recovery" aria-label="ออกโค้ดกู้คืน Portal" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(u);}}>โค้ดกู้คืน</button>,
+                        primaryAdmin&&live&&<button key="quota" className="resource-edit" aria-label="แก้ไขสิทธิ์ใช้ทรัพยากร" disabled={busy} onClick={()=>{setRecoveryTarget(null);setQuotaTarget([u]);}}>ปรับทรัพยากร</button>,
+                        primaryAdmin&&u.status==="approved"&&!u.top_admin&&(topAdmin||u.role!=="admin"||!u.primary_admin)&&<button key="recovery" aria-label="ออกโค้ดกู้คืน Portal" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(u);}}>โค้ดกู้คืน</button>,
                         primaryAdmin&&u.status==="approved"&&!u.primary_admin&&!self&&<button key="role" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(null);setRoleTarget(u);}}>{u.role==="admin"?"ลดเป็นผู้ใช้":"ยกระดับเป็น Admin"}</button>,
+                        topAdmin&&u.status==="approved"&&u.role==="admin"&&!u.top_admin&&!self&&<button key="primary" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(null);setPrimaryTarget(u);}}>{u.primary_admin?"ถอนสิทธิ์ผู้ดูแลหลัก":"มอบสิทธิ์ผู้ดูแลหลัก"}</button>,
                         primaryAdmin&&u.role!=="admin"&&!self&&live&&<button key="delete" className="danger menu-danger" disabled={busy} onClick={()=>setDeleteTarget(u)}>ลบผู้ใช้</button>,
                       ].filter(Boolean);
                       return items.length>0&&<ActionMenu className="account-action-menu" label="จัดการ" ariaLabel={`จัดการ ${u.username}`}>{items}</ActionMenu>;

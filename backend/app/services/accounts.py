@@ -178,3 +178,29 @@ class AccountService:
         )
         self.db.commit()
         return user
+
+    def change_primary(self, actor, user_id, data):
+        """Only the top admin grants or revokes primary admin rights."""
+        if actor.role != "admin" or not actor.top_admin:
+            raise HTTPException(403, "Top administrator required")
+        if not passwords.verify(
+            data.admin_password.get_secret_value(), actor.password_hash
+        ):
+            raise HTTPException(403, "Administrator password is incorrect")
+        user = self.repo.lock_user(user_id)
+        if not user or user.status in {"deleting", "deleted"}:
+            raise HTTPException(404, "User not found")
+        if user.id == actor.id or user.top_admin:
+            raise HTTPException(409, "The top administrator keeps primary rights")
+        if user.role != "admin" or user.status != "approved":
+            raise HTTPException(409, "Only an approved admin can hold primary rights")
+        if data.confirm_username != user.username:
+            raise HTTPException(422, "Username confirmation does not match")
+        if user.primary_admin == data.primary_admin:
+            raise HTTPException(409, "Account already has this role")
+        user.primary_admin = data.primary_admin
+        self.repo.audit(
+            actor.id, "user.primary.changed", user.id, primary_admin=data.primary_admin
+        )
+        self.db.commit()
+        return user

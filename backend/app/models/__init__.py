@@ -45,9 +45,11 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(Text)
     auth_version: Mapped[int] = mapped_column(default=0)
     role: Mapped[str] = mapped_column(String(16), default="user")
-    # Primary admins own the installation; promoted admins cannot delete users
-    # or change roles.
+    # Primary admins change the Proxmox setup, manage every VM and the accounts;
+    # other admins view everything and decide requests.
     primary_admin: Mapped[bool] = mapped_column(default=False)
+    # The first administrator: the only one who grants or revokes primary rights.
+    top_admin: Mapped[bool] = mapped_column(default=False)
     # Last request states the owner has viewed, so updates alert on any device.
     request_seen: Mapped[dict | None] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(16), default="pending")

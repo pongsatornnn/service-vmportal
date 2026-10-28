@@ -32,7 +32,7 @@ def redis_client():
 
 
 def console_vm(db, user, vm_id):
-    vm = PortalService(db).owned_vm(user, vm_id)
+    vm = PortalService(db).managed_vm(user, vm_id)
     cfg = ConfigurationService(db).runtime(require_enabled=True)
     owner = db.get(User, vm.owner_id)
     if owner.status in {"deleting", "deleted"}:

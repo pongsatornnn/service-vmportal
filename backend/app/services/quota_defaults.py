@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException
 from sqlalchemy import select
 
+from app.core.security import manages_all
 from app.models import QuotaDefaults, User
 from app.repositories.portal import PortalRepository
 
@@ -39,8 +40,8 @@ class QuotaDefaultsService:
         }
 
     def save(self, actor, data):
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         row = self.row(lock=True)
         before = {key: getattr(row, key) for key in KEYS}
         values = data.model_dump(exclude={"apply_to_existing"})

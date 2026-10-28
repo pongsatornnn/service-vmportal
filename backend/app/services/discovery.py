@@ -12,6 +12,7 @@ from pydantic import SecretStr
 
 from app.adapters.proxmox import RestProxmox
 from app.core.config import settings
+from app.core.security import manages_all
 from app.services.configuration import ConfigurationService
 
 
@@ -64,8 +65,8 @@ class DiscoveryService:
         self.configuration = ConfigurationService(db)
 
     def discover(self, actor, data):
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         url = urlsplit(data.url)
         if (
             url.scheme != "https"

@@ -14,7 +14,7 @@ from app.api.schemas import (
     VMPasswordResetOut,
 )
 from app.core.db import get_db
-from app.core.security import admin, current_user
+from app.core.security import admin, current_user, primary_admin
 from app.models import VMPasswordReset
 from app.repositories.portal import PortalRepository
 from app.services.passwords import PasswordService
@@ -38,7 +38,7 @@ def recover_password(data: RedeemRecovery, db: Session = Depends(get_db)):
 def issue_recovery(
     user_id: PortalID,
     data: IssueRecovery,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     return PasswordService(db).issue(user, user_id, data)
@@ -116,7 +116,9 @@ def get_session_policy(user=Depends(admin), db: Session = Depends(get_db)):
 
 @router.post("/admin/session-policy")
 def save_session_policy(
-    data: SessionPolicyUpdate, user=Depends(admin), db: Session = Depends(get_db)
+    data: SessionPolicyUpdate,
+    user=Depends(primary_admin),
+    db: Session = Depends(get_db),
 ):
     from app.services.session_policy import SessionPolicyService
 

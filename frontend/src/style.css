@@ -793,11 +793,11 @@ body:has(dialog[open]) { overflow: hidden; }
 }
 
 /* Status colours: green done/approved, red refused/failed, orange needs a look,
-   amber waiting, blue in progress, grey cancelled, slate deleted. */
+   amber waiting or still reading, blue in progress, grey cancelled, slate deleted. */
 .badge.ready, .badge.approved, .badge.succeeded, .badge.completed { color: #14603f; background: #dcf3e5; }
 .badge.rejected, .badge.failed { color: #a1262d; background: #fde4e5; }
 .badge.needs_review, .badge.missing { color: #9a4b06; background: #ffead3; }
-.badge.pending { color: #7a5600; background: #fff1c7; }
+.badge.pending, .badge.reading { color: #7a5600; background: #fff1c7; }
 .badge.queued, .badge.running, .badge.provisioning { color: #1d4f91; background: #e2edfc; }
 .badge.cancelled { color: #5a6676; background: #eceff3; }
 .badge.deleted { color: #fff; background: #5d6b7c; }

@@ -382,6 +382,11 @@ class ChangeRole(IssueRecovery):
     confirm_username: str = Field(min_length=3, max_length=32)
 
 
+class ChangePrimary(IssueRecovery):
+    primary_admin: bool = Field(strict=True)
+    confirm_username: str = Field(min_length=3, max_length=32)
+
+
 class ResetVMPassword(NewPassword):
     reason: str = Field(min_length=3, max_length=1000)
 

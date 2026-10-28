@@ -97,7 +97,8 @@ sudo .venv/bin/python scripts/reset_admin_password.py
 
 - [คู่มือตัวติดตั้ง Server](docs/SERVER-INSTALLER.md): รายละเอียดทุกคำถาม, การรันซ้ำ, การคืนค่าเมื่อล้มเหลว
 - [ใช้งานครั้งแรกและดูแลระบบ](docs/SETUP.md)
-- [คู่มือผู้ดูแล](docs/ADMIN-GUIDE.md) และคู่มือในเว็บ (วิธีสร้าง Template Ubuntu, Debian และ Windows Server)
+- [คู่มือการใช้งานสำหรับผู้ใช้](docs/USER-GUIDE.md) (ในเว็บที่เมนู คู่มือการใช้งาน)
+- [คู่มือผู้ดูแล](docs/ADMIN-GUIDE.md): ระดับผู้ดูแล และคู่มือในเว็บ (วิธีสร้าง Template Ubuntu, Debian และ Windows Server)
 - [การจัดการ VM](docs/VM-MANAGEMENT.md): IP, Console, Restart, คำขอลบ
 - [รหัสผ่านและการกู้คืน](docs/PASSWORD-RECOVERY.md)
 - [SSH Password Login](docs/SSH-PASSWORD-SETUP.md) และ [เตรียม Template พร้อม SSH Password](docs/TEMPLATE-SSH-PASSWORD.md)

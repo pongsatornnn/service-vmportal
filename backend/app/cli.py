@@ -50,6 +50,8 @@ def main():
                 password_hash=passwords.hash(password),
                 role="admin",
                 primary_admin=True,
+                # The first administrator created offline also hands out primary rights.
+                top_admin=not db.scalar(select(User.id).where(User.top_admin)),
                 status="approved",
             )
             db.add(user)

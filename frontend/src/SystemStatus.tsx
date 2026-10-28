@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FormDialog } from "./FormDialog";
 import type { Dashboard } from "./types";
 
-export function SystemStatus({setup,admin,onSetup}:{setup:Dashboard["setup"];admin:boolean;onSetup:()=>void}) {
+export function SystemStatus({setup,admin,canSetup,onSetup}:{setup:Dashboard["setup"];admin:boolean;canSetup:boolean;onSetup:()=>void}) {
   const [open,setOpen]=useState(false);
   const ready=!!(setup?.configured&&setup.connection_verified&&setup.enabled);
   const label=!setup?"กำลังตรวจสอบสถานะ":ready?"ระบบพร้อม":"ระบบยังไม่พร้อม";
@@ -17,8 +17,8 @@ export function SystemStatus({setup,admin,onSetup}:{setup:Dashboard["setup"];adm
         <div><dt>ตรวจการเชื่อมต่อ</dt><dd>{setup.connection_verified?"ผ่านแล้ว":"ยังไม่ผ่าน"}</dd></div>
         <div><dt>รับคำขอและคำสั่ง VM</dt><dd>{setup.enabled?"เปิดใช้งาน":"พักใช้งาน"}</dd></div>
       </dl>}
-      {!ready&&<p className="muted">{admin?"ตั้งค่า ตรวจการเชื่อมต่อ และเปิดใช้งานในหน้า Setup":"กรุณารอ Admin ตรวจสอบและเปิดใช้งานระบบ"}</p>}
-      {admin&&<button type="button" className="primary" onClick={()=>{setOpen(false);onSetup();}}>ไปหน้า Setup</button>}
+      {!ready&&<p className="muted">{canSetup?"ตั้งค่า ตรวจการเชื่อมต่อ และเปิดใช้งานในหน้า Setup":"กรุณารอผู้ดูแลหลักตรวจสอบและเปิดใช้งานระบบ"}</p>}
+      {canSetup&&<button type="button" className="primary" onClick={()=>{setOpen(false);onSetup();}}>ไปหน้า Setup</button>}
     </section></FormDialog>}
   </>;
 }

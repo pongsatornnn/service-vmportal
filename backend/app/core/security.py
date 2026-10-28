@@ -61,6 +61,17 @@ def admin(user: User = Depends(current_user)):
     return user
 
 
+def primary_admin(user: User = Depends(admin)):
+    if not user.primary_admin:
+        raise HTTPException(403, "Primary administrator required")
+    return user
+
+
+def manages_all(user):
+    """Primary admins may operate any VM; other users only their own."""
+    return user.role == "admin" and user.primary_admin
+
+
 def credential_expiry(credentials):
     try:
         payload = jwt.decode(

@@ -5,6 +5,7 @@ export type User = {
   last_name: string;
   role: string;
   primary_admin?: boolean;
+  top_admin?: boolean;
   status: string;
   quota_customized?: boolean;
   quota_vms: number;

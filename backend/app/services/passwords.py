@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.adapters.proxmox import ProxmoxError, make_adapter
-from app.core.security import passwords
+from app.core.security import manages_all, passwords
 from app.models import PasswordRecovery, VMPasswordReset
 from app.repositories.portal import PortalRepository
 from app.services.configuration import ConfigurationService
@@ -42,8 +42,8 @@ class PasswordService:
         return {"ok": True, "sign_in_required": True}
 
     def issue(self, actor, user_id, data):
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         if not passwords.verify(
             data.admin_password.get_secret_value(), actor.password_hash
         ):
@@ -51,10 +51,10 @@ class PasswordService:
         target = self.repo.lock_user(user_id)
         if not target or target.status != "approved":
             raise HTTPException(404, "Approved account not found")
-        # A recovery code takes over the account, so only a primary admin may
-        # issue one for another admin.
-        if target.role == "admin" and not actor.primary_admin:
-            raise HTTPException(403, "Primary administrator required")
+        # A recovery code takes over the account: only the top admin may issue
+        # one for a primary admin, and nobody for the top admin (use the server CLI).
+        if target.top_admin or (target.primary_admin and not actor.top_admin):
+            raise HTTPException(403, "Top administrator required")
         self.invalidate_codes(target.id)
         raw = secrets.token_urlsafe(32)
         expiry = datetime.now(UTC) + timedelta(minutes=15)
@@ -107,7 +107,7 @@ class PasswordService:
 
     def request_vm(self, actor, vm_id, data):
         cfg = ConfigurationService(self.db).runtime(lock=True, require_enabled=True)
-        vm = PortalService(self.db).owned_vm(actor, vm_id)
+        vm = PortalService(self.db).managed_vm(actor, vm_id)
         owner = self.repo.lock_user(vm.owner_id)
         if owner.status in {"deleting", "deleted"}:
             raise HTTPException(409, "Account deletion is in progress")

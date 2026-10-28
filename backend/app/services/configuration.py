@@ -70,6 +70,7 @@ class ConfigurationService:
             password_hash=passwords.hash(data.password),
             role="admin",
             primary_admin=True,
+            top_admin=True,
             status="approved",
         )
         self.db.add(user)

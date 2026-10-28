@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.core.config import settings
+from app.core.security import manages_all
 from app.models import SessionPolicy
 from app.repositories.portal import PortalRepository
 
@@ -24,8 +25,8 @@ class SessionPolicyService:
         }
 
     def save(self, actor, data):
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         row = self.db.scalar(
             select(SessionPolicy).where(SessionPolicy.id == 1).with_for_update()
         )

@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.adapters.proxmox import ProxmoxError, make_adapter
+from app.core.security import manages_all
 from app.models import VM, Job, VMDeletionRequest, VMPasswordReset, VMRequest
 from app.repositories.portal import PortalRepository
 from app.services.configuration import ConfigurationService
@@ -112,8 +113,8 @@ class PresenceService:
         )
 
     def confirm_external_deletion(self, actor, vm_id, hostname):
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         original = self.db.get(VM, vm_id)
         if not original or original.status not in {"ready", "needs_review", "missing"}:
             raise HTTPException(409, "A confirmed missing VM is required")

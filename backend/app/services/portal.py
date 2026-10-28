@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app.core.security import manages_all
 from app.models import (
     VM,
     AuditLog,
@@ -186,6 +187,13 @@ class PortalService:
             raise HTTPException(404, "VM not found")
         return vm
 
+    def managed_vm(self, actor, vm_id):
+        """The owner or a primary admin operates a VM; other admins only view it."""
+        vm = self.owned_vm(actor, vm_id)
+        if vm.owner_id != actor.id and not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
+        return vm
+
     def action(self, actor, vm_id, action, *, commit=True):
         if action not in {
             "start",
@@ -196,9 +204,17 @@ class PortalService:
             "reset_password",
         } or (action in {"delete", "reset_password"} and actor.role != "admin"):
             raise HTTPException(403, "Unsupported or unauthorized action")
+        if action == "delete" and not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         config = ConfigurationService(self.db).runtime(lock=True, require_enabled=True)
         self.repo.lock_user(actor.id)
-        vm = self.owned_vm(actor, vm_id)
+        # A password reset runs only for a request the owner made and any admin
+        # approved; every other operation needs the owner or a primary admin.
+        vm = (
+            self.owned_vm(actor, vm_id)
+            if action == "reset_password"
+            else self.managed_vm(actor, vm_id)
+        )
         vm = self.db.scalar(
             select(VM)
             .where(VM.id == vm.id)
@@ -233,7 +249,7 @@ class PortalService:
     def request_delete(self, actor, vm_id, data):
         ConfigurationService(self.db).runtime(lock=True, require_enabled=True)
         self.repo.lock_user(actor.id)
-        vm = self.owned_vm(actor, vm_id)
+        vm = self.managed_vm(actor, vm_id)
         vm = self.db.scalar(select(VM).where(VM.id == vm.id).with_for_update())
         owner = self.repo.lock_user(vm.owner_id)
         if owner.status in {"deleting", "deleted"}:
@@ -257,8 +273,8 @@ class PortalService:
         return req
 
     def decide_delete(self, actor, request_id, decision):
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         # Serialize all decisions/actions with the same configuration lock.
         ConfigurationService(self.db).runtime(lock=True, require_enabled=True)
         req = self.db.scalar(
@@ -312,8 +328,8 @@ class PortalService:
             adapter.close()
 
     def retry_delete(self, actor, request_id, confirmation):
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         ConfigurationService(self.db).runtime(lock=True, require_enabled=True)
         req = self.db.scalar(
             select(VMDeletionRequest)
@@ -358,8 +374,8 @@ class PortalService:
     def resume_clone(self, actor, job_id, confirmation):
         from app.adapters.proxmox import ProxmoxError, make_adapter
 
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         cfg = ConfigurationService(self.db).runtime(lock=True, require_enabled=True)
         job = self.db.scalar(select(Job).where(Job.id == job_id).with_for_update())
         if not job:
@@ -451,8 +467,8 @@ class PortalService:
     def resume_provision(self, actor, job_id, confirmation):
         from app.adapters.proxmox import GIB, ProxmoxError, make_adapter
 
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         job = self.db.get(Job, job_id)
         if job and job.checkpoint in CLONE_RESUME_CHECKPOINTS:
             return self.resume_clone(actor, job_id, confirmation)
@@ -517,8 +533,8 @@ class PortalService:
         return job
 
     def close_job(self, actor, job_id, data):
-        if actor.role != "admin":
-            raise HTTPException(403, "Admin required")
+        if not manages_all(actor):
+            raise HTTPException(403, "Primary administrator required")
         ConfigurationService(self.db).runtime(lock=True, require_enabled=True)
         job = self.db.scalar(select(Job).where(Job.id == job_id).with_for_update())
         if not job:

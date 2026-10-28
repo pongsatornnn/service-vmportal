@@ -12,6 +12,7 @@ from app.api.schemas import (
     Activation,
     Bootstrap,
     BulkQuota,
+    ChangePrimary,
     ChangeRole,
     CloseJob,
     ConnectionSettings,
@@ -33,7 +34,14 @@ from app.api.schemas import (
 )
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.security import DUMMY_HASH, admin, current_user, passwords, token
+from app.core.security import (
+    DUMMY_HASH,
+    admin,
+    current_user,
+    passwords,
+    primary_admin,
+    token,
+)
 from app.models import (
     VM,
     AuditLog,
@@ -85,6 +93,7 @@ def public_user(user):
             "last_name",
             "role",
             "primary_admin",
+            "top_admin",
             "status",
             "quota_customized",
             "quota_vms",
@@ -213,7 +222,7 @@ def templates(user=Depends(current_user), db: Session = Depends(get_db)):
 
 @router.post("/admin/templates", status_code=201)
 def create_template(
-    data: TemplateIn, user=Depends(admin), db: Session = Depends(get_db)
+    data: TemplateIn, user=Depends(primary_admin), db: Session = Depends(get_db)
 ):
     from app.services.templates import TemplateService
 
@@ -225,7 +234,7 @@ def create_template(
 def update_template(
     template_id: PortalID,
     data: TemplateIn,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     from app.services.templates import TemplateService
@@ -236,7 +245,7 @@ def update_template(
 
 @router.post("/admin/templates/{template_id}/verify")
 def verify_template(
-    template_id: PortalID, user=Depends(admin), db: Session = Depends(get_db)
+    template_id: PortalID, user=Depends(primary_admin), db: Session = Depends(get_db)
 ):
     from app.services.templates import TemplateService
 
@@ -248,7 +257,7 @@ def verify_template(
 def enable_template(
     template_id: PortalID,
     data: TemplateToggle,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     from app.services.templates import TemplateService
@@ -261,7 +270,7 @@ def enable_template(
 
 @router.post("/admin/templates/{template_id}/delete")
 def delete_template(
-    template_id: PortalID, user=Depends(admin), db: Session = Depends(get_db)
+    template_id: PortalID, user=Depends(primary_admin), db: Session = Depends(get_db)
 ):
     from app.services.templates import TemplateService
 
@@ -383,7 +392,10 @@ def check(user=Depends(admin), db: Session = Depends(get_db)):
 
 @router.post("/admin/users/{user_id}/quota")
 def quota(
-    user_id: PortalID, data: Quota, user=Depends(admin), db: Session = Depends(get_db)
+    user_id: PortalID,
+    data: Quota,
+    user=Depends(primary_admin),
+    db: Session = Depends(get_db),
 ):
     repo = PortalRepository(db)
     target = repo.lock_user(user_id)
@@ -403,7 +415,9 @@ def quota(
 
 
 @router.post("/admin/users/quota/bulk")
-def bulk_quota(data: BulkQuota, user=Depends(admin), db: Session = Depends(get_db)):
+def bulk_quota(
+    data: BulkQuota, user=Depends(primary_admin), db: Session = Depends(get_db)
+):
     repo = PortalRepository(db)
     values = data.model_dump(exclude={"user_ids"})
     targets = []
@@ -447,14 +461,14 @@ def get_settings(user=Depends(admin), db: Session = Depends(get_db)):
 
 @router.post("/admin/settings")
 def save_settings(
-    data: ConnectionSettings, user=Depends(admin), db: Session = Depends(get_db)
+    data: ConnectionSettings, user=Depends(primary_admin), db: Session = Depends(get_db)
 ):
     return ConfigurationService(db).save(user, data)
 
 
 @router.post("/admin/settings/resources")
 def discover_resources(
-    data: ResourceDiscovery, user=Depends(admin), db: Session = Depends(get_db)
+    data: ResourceDiscovery, user=Depends(primary_admin), db: Session = Depends(get_db)
 ):
     from app.services.discovery import DiscoveryService
 
@@ -462,12 +476,14 @@ def discover_resources(
 
 
 @router.post("/admin/settings/check")
-def check_settings(user=Depends(admin), db: Session = Depends(get_db)):
+def check_settings(user=Depends(primary_admin), db: Session = Depends(get_db)):
     return ConfigurationService(db).check(user)
 
 
 @router.post("/admin/settings/activation")
-def activation(data: Activation, user=Depends(admin), db: Session = Depends(get_db)):
+def activation(
+    data: Activation, user=Depends(primary_admin), db: Session = Depends(get_db)
+):
     return ConfigurationService(db).activate(user, data)
 
 
@@ -515,7 +531,7 @@ def request_deletion(
 def decide_deletion(
     request_id: PortalID,
     data: DeleteDecision,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     return PortalService(db).decide_delete(user, request_id, data)
@@ -525,7 +541,7 @@ def decide_deletion(
 def retry_deletion(
     request_id: PortalID,
     data: RetryDelete,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     return PortalService(db).retry_delete(user, request_id, data)
@@ -535,7 +551,7 @@ def retry_deletion(
 def resume_clone(
     job_id: PortalID,
     data: RetryDelete,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     return PortalService(db).resume_provision(user, job_id, data)
@@ -545,7 +561,7 @@ def resume_clone(
 def close_job(
     job_id: PortalID,
     data: CloseJob,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     return PortalService(db).close_job(user, job_id, data)
@@ -559,7 +575,7 @@ def close_job(
 def delete_user(
     user_id: PortalID,
     data: DeleteUser,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     from app.services.accounts import AccountService
@@ -571,7 +587,7 @@ def delete_user(
 def change_role(
     user_id: PortalID,
     data: ChangeRole,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     from app.services.accounts import AccountService
@@ -579,12 +595,22 @@ def change_role(
     return public_user(AccountService(db).change_role(user, user_id, data))
 
 
+@router.post("/admin/users/{user_id}/primary")
+def change_primary(
+    user_id: PortalID,
+    data: ChangePrimary,
+    user=Depends(primary_admin),
+    db: Session = Depends(get_db),
+):
+    from app.services.accounts import AccountService
+
+    return public_user(AccountService(db).change_primary(user, user_id, data))
+
+
 @router.get("/admin/users/{user_id}/deletion-preview")
 def deletion_preview(
-    user_id: PortalID, user=Depends(admin), db: Session = Depends(get_db)
+    user_id: PortalID, user=Depends(primary_admin), db: Session = Depends(get_db)
 ):
-    if not user.primary_admin:
-        raise HTTPException(403, "Primary administrator required")
     target = db.get(User, user_id)
     if not target:
         raise HTTPException(404, "User not found")
@@ -643,7 +669,9 @@ def get_quota_defaults(user=Depends(admin), db: Session = Depends(get_db)):
 
 @router.post("/admin/quota-defaults")
 def set_quota_defaults(
-    data: QuotaDefaultsUpdate, user=Depends(admin), db: Session = Depends(get_db)
+    data: QuotaDefaultsUpdate,
+    user=Depends(primary_admin),
+    db: Session = Depends(get_db),
 ):
     from app.services.quota_defaults import QuotaDefaultsService
 
@@ -665,7 +693,7 @@ def check_vm_presence(
 def confirm_external_deletion(
     vm_id: PortalID,
     data: RetryDelete,
-    user=Depends(admin),
+    user=Depends(primary_admin),
     db: Session = Depends(get_db),
 ):
     from app.services.presence import PresenceService
