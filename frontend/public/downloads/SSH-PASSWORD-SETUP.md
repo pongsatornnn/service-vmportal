@@ -26,7 +26,7 @@
 1. อ่าน Script ก่อน แล้วคัดลอกไป Node3 ตัวอย่างคำสั่งนี้ให้ Admin รันเองบน Portal Server (จะถาม SSH credentials ของ Proxmox ตามปกติ ไม่ใส่รหัสลงในคำสั่ง):
 
    ```bash
-   scp /home/jj/proxmox-portal/scripts/install-proxmox-ssh-policy.sh root@10.80.48.6:/root/
+   scp install-proxmox-ssh-policy.sh root@<proxmox-host>:/root/
    ```
 
 2. เปิด **Proxmox → Node3 → Shell** แล้วรัน:
