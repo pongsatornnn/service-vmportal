@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from redis import Redis
@@ -663,10 +665,14 @@ def system_health(user=Depends(admin), db: Session = Depends(get_db)):
 
 
 @router.get("/admin/quota-defaults")
-def get_quota_defaults(user=Depends(admin), db: Session = Depends(get_db)):
+def get_quota_defaults(
+    role: Literal["user", "admin"] = "user",
+    user=Depends(admin),
+    db: Session = Depends(get_db),
+):
     from app.services.quota_defaults import QuotaDefaultsService
 
-    return QuotaDefaultsService(db).public()
+    return QuotaDefaultsService(db).public(role)
 
 
 @router.post("/admin/quota-defaults")

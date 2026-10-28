@@ -65,7 +65,10 @@ class ConfigurationService:
         expected = settings().bootstrap_token.get_secret_value()
         if not expected or not secrets.compare_digest(data.setup_token, expected):
             raise HTTPException(403, "Invalid setup token")
+        from app.services.quota_defaults import QuotaDefaultsService
+
         user = User(
+            **QuotaDefaultsService(self.db).values(role="admin"),
             username=str(data.username).lower(),
             password_hash=passwords.hash(data.password),
             role="admin",

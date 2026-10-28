@@ -40,6 +40,7 @@ import { ConsolePage } from "./ConsolePage";
 import { SystemHealth, ResourceUsage } from "./SystemHealth";
 import { BootstrapSetup, ConnectionSetup } from "./Setup";
 import { wholeNumber } from "./wholeNumber";
+import { GuestAccount } from "./GuestAccount";
 
 function App() {
   const [registrationPassword,setRegistrationPassword]=useState("");
@@ -394,7 +395,7 @@ function App() {
   const approvalCount = users.filter(u => u.status === "pending").length + requests.filter(r => r.status === "pending").length + (primaryAdmin ? deletions.filter(r => r.status === "pending").length : 0) + passwordResets.filter(r => r.status === "pending").length;
   const titles: Record<string,string> = {overview:"เครื่องเสมือน",requests:"ขอสร้าง VM",status:"สถานะคำขอ",approvals:"รออนุมัติ",activity:"กิจกรรม",accounts:"ผู้ใช้",setup:"ตั้งค่า",guide:admin?"คู่มือ":"คู่มือการใช้งาน",audit:"บันทึกการใช้งาน",password:"รหัสผ่านของฉัน"};
   if (firstAdmin === null || (token && !sessionReady))
-    return <div className="boot-screen"><main className="boot-card"><img src={at("portal-mark.svg")} width="52" height="52" alt=""/><h1>VM Portal</h1><p role="status">กำลังโหลดหน้าของคุณ…</p>{error&&<><p className="alert error" role="alert">{error}</p><button onClick={()=>window.location.reload()}>ลองใหม่</button><button onClick={signOut}>กลับไปเข้าสู่ระบบ</button></>}</main></div>;
+    return <div className="boot-screen"><main className="boot-card"><img src={at("portal-mark.svg")} width="52" height="52" alt=""/><h1>ICT - VM Portal</h1><p role="status">กำลังโหลดหน้าของคุณ…</p>{error&&<><p className="alert error" role="alert">{error}</p><button onClick={()=>window.location.reload()}>ลองใหม่</button><button onClick={signOut}>กลับไปเข้าสู่ระบบ</button></>}</main></div>;
   if (firstAdmin)
     return (
       <BootstrapSetup
@@ -412,7 +413,7 @@ function App() {
           <div className="page-heading">
             {token&&<Navigation active={tab} items={["overview","requests","status","activity",...(admin?["approvals","accounts",...(primaryAdmin?["setup"]:[]),"guide","audit"]:["guide"])].map(id=>({id,label:titles[id],count:id==="approvals"?approvalCount:id==="status"?updateCount:undefined}))} onNavigate={id=>{setTab(id);if(id==="setup")setSettingsSection("connection");setNotice("");setError("");}}/>}
             <h1>
-              {token ? titles[tab] : "ยินดีต้อนรับสู่ VM Portal"}
+              {token ? titles[tab] : "ยินดีต้อนรับสู่ ICT - VM Portal"}
             </h1>
           </div>
           {token && (
@@ -443,7 +444,7 @@ function App() {
           <button onClick={() => setRecoveryMode(false)}>กลับไป Login</button>
         </> : (
           <section className="auth panel login-card">
-            <a className="login-brand" href={BASE}><img src={at("portal-mark.svg")} alt="" width="48" height="48"/><span>VM Portal</span></a>
+            <a className="login-brand" href={BASE}><img src={at("portal-mark.svg")} alt="" width="48" height="48"/><span>ICT - VM Portal</span></a>
             <div className="help-heading"><h2>{register ? "สมัครสมาชิก" : "เข้าสู่ระบบ"}</h2>{register&&<HelpTip label="เกี่ยวกับการสมัครสมาชิก">บัญชีต้องรอ Admin อนุมัติก่อนใช้งาน</HelpTip>}</div>
 
             <form onSubmit={auth}>
@@ -543,7 +544,7 @@ function App() {
                             <td><div className="vm-actions">
                               <ActionMenu className="vm-action-menu" label="จัดการ" ariaLabel={`จัดการ ${vm.hostname}`}>
                               {/* The account created in the VM is the owner's alone; the API withholds it from everyone else. */}
-                              {vm.owner_id===dashboard?.user.id&&(()=>{const guest=requests.find(r=>r.id===vm.request_id)?.guest_username;return guest&&<p className="menu-info">บัญชีในเครื่อง VM <strong>{guest}</strong></p>;})()}
+                              {vm.owner_id===dashboard?.user.id&&(()=>{const guest=requests.find(r=>r.id===vm.request_id)?.guest_username;return guest&&<GuestAccount name={guest}/>;})()}
                               {admin&&vm.status==="needs_review"&&recoverableProvisions.some(job=>job.vm_id===vm.id)&&<button disabled={busy} onClick={()=>void resumeProvision(recoverableProvisions.find(job=>job.vm_id===vm.id)!)}>{recoverableClones.some(job=>job.vm_id===vm.id)?"ตรวจและทำต่อจาก Clone เดิม (Admin)":"ตรวจและทำต่อจากขั้นที่ค้าง (Admin)"}</button>}
                               {admin&&vm.status==="needs_review"&&jobs.some(job=>job.vm_id===vm.id&&needsAttention(job))&&<button className="danger" disabled={busy} onClick={()=>void closeJob(jobs.find(job=>job.vm_id===vm.id&&needsAttention(job))!)}>ทำต่อไม่ได้ · ปิดงานและแจ้งผู้ใช้ (Admin)</button>}
                               <button type="button" aria-label={`อัปเดต IP / สถานะ ${vm.hostname}`} disabled={busy||(!["ready","missing","needs_review"].includes(vm.status)||vm.vmid===null)} onClick={()=>void act(async()=>{const presence=await api<{status:string}>(`/vms/${vm.id}/presence`,{});await refresh();if(presence.status==="ready"){const info=await api<Runtime>(`/vms/${vm.id}/runtime`);setRuntime(previous=>({...previous,[vm.id]:info}));}})}>{vm.status==="ready"?"อัปเดต IP":"ตรวจสถานะ"}</button>
@@ -749,7 +750,7 @@ function App() {
                   <span>เลือก {users.filter(u=>selectedQuotaUsers.includes(u.id)&&!["deleted","deleting"].includes(u.status)).length} คน</span>
                   <button className="primary" aria-label="กำหนดสิทธิ์ใช้ทรัพยากรให้ผู้ใช้ที่เลือก" disabled={busy||!users.some(u=>selectedQuotaUsers.includes(u.id)&&!["deleted","deleting"].includes(u.status))} onClick={()=>{setRecoveryTarget(null);setQuotaTarget(users.filter(u=>selectedQuotaUsers.includes(u.id)&&!["deleted","deleting"].includes(u.status)));}}>กำหนดทรัพยากร</button>
                 </div>}
-                {showQuotaDefaults&&<QuotaDefaultsForm api={api} onClose={()=>setShowQuotaDefaults(false)} changed={refresh}/>}
+                {showQuotaDefaults&&<QuotaDefaultsForm api={api} onClose={()=>setShowQuotaDefaults(false)} changed={refresh} canAdmin={primaryAdmin}/>}
                 {quotaTarget && <QuotaForm key={quotaTarget.map(u=>u.id).join(",")} api={api} users={quotaTarget} onClose={()=>setQuotaTarget(null)} onDone={()=>{setQuotaTarget(null);setSelectedQuotaUsers([]);setNotice("บันทึกสิทธิ์ใช้ทรัพยากรแล้ว");void refresh();}}/>}
                 {roleTarget && <AdminRoleForm key={roleTarget.id} api={api} user={roleTarget} onClose={()=>setRoleTarget(null)} onDone={changed=>{setRoleTarget(null);setNotice(changed.role==="admin"?`ยกระดับ ${changed.username} เป็น Admin แล้ว`:`ลดสิทธิ์ ${changed.username} เป็นผู้ใช้แล้ว`);void refresh();}}/>}
                 {primaryTarget && <PrimaryAdminForm key={primaryTarget.id} api={api} user={primaryTarget} onClose={()=>setPrimaryTarget(null)} onDone={changed=>{setPrimaryTarget(null);setNotice(changed.primary_admin?`มอบสิทธิ์ผู้ดูแลหลักให้ ${changed.username} แล้ว`:`ถอนสิทธิ์ผู้ดูแลหลักของ ${changed.username} แล้ว`);void refresh();}}/>}

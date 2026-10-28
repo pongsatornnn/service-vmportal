@@ -17,5 +17,5 @@ export function ConsolePage({vmId}:{vmId:string}){
   }
   void open().catch(e=>{if(active)setError(explainError(e));});return()=>{active=false;};
  },[vmId]);
- return <main className="console-page"><header><a className="login-brand" href={BASE}><img src={at("portal-mark.svg")} width="36" height="36" alt=""/>VM Portal</a><span>Console · VM #{vmId.replace(/[^0-9]/g,'')}</span></header>{error&&<p className="alert error" role="alert">{error}</p>}{session?<VMConsole {...session} onClose={()=>{setSession(null);setClosed(true);}}/>:!error&&<p role="status">{closed?'ปิด Console แล้ว คุณสามารถปิดแท็บนี้ได้':'กำลังเปิด Console…'}</p>}</main>;
+ return <main className="console-page"><header><a className="login-brand" href={BASE}><img src={at("portal-mark.svg")} width="36" height="36" alt=""/>ICT - VM Portal</a><span>Console · VM #{vmId.replace(/[^0-9]/g,'')}</span></header>{error&&<p className="alert error" role="alert">{error}</p>}{session?<VMConsole {...session} onClose={()=>{setSession(null);setClosed(true);}}/>:!error&&<p role="status">{closed?'ปิด Console แล้ว คุณสามารถปิดแท็บนี้ได้':'กำลังเปิด Console…'}</p>}</main>;
 }

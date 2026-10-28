@@ -174,6 +174,9 @@ class AccountService:
         if data.role == "user":
             # Primary rights only exist on admin accounts.
             user.primary_admin = False
+        from app.services.quota_defaults import QuotaDefaultsService
+
+        QuotaDefaultsService(self.db).apply_role_defaults(actor, user)
         self.repo.audit(
             actor.id, "user.role.changed", user.id, previous=previous, role=data.role
         )

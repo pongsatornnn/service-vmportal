@@ -253,6 +253,7 @@ class BulkQuota(Quota):
 
 class QuotaDefaultsUpdate(Quota):
     apply_to_existing: bool = Field(default=False, strict=True)
+    role: Literal["user", "admin"] = "user"
 
 
 class Bootstrap(StrictModel):

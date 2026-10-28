@@ -45,7 +45,10 @@ def main():
                 )
             ):
                 raise SystemExit("Username already exists")
+            from app.services.quota_defaults import QuotaDefaultsService
+
             user = User(
+                **QuotaDefaultsService(db).values(role="admin"),
                 username=args.username.lower(),
                 password_hash=passwords.hash(password),
                 role="admin",
