@@ -296,8 +296,13 @@ function App() {
   useEffect(()=>{
     if(tab!=="requests"||!token)return;
     let active=true;
-    api<typeof offered & object>("/templates").then(list=>{if(!active)return;setOffered(list);setTemplateId(current=>list.some(t=>t.id===current)?current:list.length===1?list[0].id:null);}).catch(()=>{if(active)setOffered([]);});
-    return()=>{active=false;};
+    // Admins receive every template (for management); a request may only use open, verified ones.
+    const load=()=>api<(Template|Pick<Template,"id"|"name"|"description"|"min_disk_gb">)[]>("/templates").then(all=>{if(!active)return;const list=all.filter(t=>!("enabled" in t)||(t.enabled&&t.verified));setOffered(list);setTemplateId(current=>list.some(t=>t.id===current)?current:list.length===1?list[0].id:null);}).catch(()=>{if(active)setOffered([]);});
+    void load();
+    // Templates opened or closed elsewhere show up when the user returns to this tab.
+    const reload=()=>{if(document.visibilityState==="visible")void load();};
+    window.addEventListener("focus",reload);document.addEventListener("visibilitychange",reload);
+    return()=>{active=false;window.removeEventListener("focus",reload);document.removeEventListener("visibilitychange",reload);};
   },[tab,token]);
   function chooseTemplate(id:number){
     setTemplateId(id);
@@ -619,8 +624,8 @@ function App() {
                 <section className="panel">
                   <h2>ขอสร้าง Virtual machine</h2>
                   <form autoComplete="off" data-form-type="other" onSubmit={requestVM} onInput={e=>{const form=e.currentTarget;const read=(name:string)=>Number((form.elements.namedItem(name) as HTMLInputElement|null)?.value)||0;setDraft({cpu:read("cpu"),ram:read("ram"),disk:read("disk")});}} onReset={()=>setDraft(defaultDraft)}>
-                    <label htmlFor="vm-template" className="template-choice">
-                      <span className="field-title">ระบบปฏิบัติการ (Template)</span>
+                    <div className="template-choice">
+                      <label htmlFor="vm-template" className="field-title">ระบบปฏิบัติการ (Template)</label>
                       {offered===null?<p className="muted">กำลังโหลด Template…</p>:!offered.length?<p className="alert warning">ยังไม่มี Template ที่เปิดให้ขอ กรุณาติดต่อผู้ดูแล</p>:<>
                         <select id="vm-template" name="template" required value={templateId??""} onChange={e=>chooseTemplate(Number(e.target.value))}>
                           <option value="" disabled>เลือก Template</option>
@@ -628,7 +633,7 @@ function App() {
                         </select>
                         {chosenTemplate&&<small className="template-hint">{chosenTemplate.description?`${chosenTemplate.description} · `:""}Disk ขั้นต่ำ {chosenTemplate.min_disk_gb} GiB</small>}
                       </>}
-                    </label>
+                    </div>
                     <label htmlFor="vm-hostname">
                       <span className="field-title">Hostname<HelpTip id="hostname-format-help" label="รูปแบบ Hostname">ยาว 1–40 ตัวอักษร เริ่มด้วยตัวพิมพ์เล็ก a–z และใช้ได้เฉพาะ a–z, 0–9 หรือขีดกลาง (-) ไม่เว้นวรรค ไม่ใช้ตัวพิมพ์ใหญ่ จุด หรือขีดล่าง เช่น ubuntu-dev, web01 เลือกชื่อที่ยังไม่ถูกใช้ในระบบ</HelpTip></span>
                       <input id="vm-hostname" aria-label="Hostname" aria-describedby="hostname-format-help"
