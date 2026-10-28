@@ -321,6 +321,9 @@ function App() {
   const primaryAdmin = admin && !!dashboard?.user.primary_admin;
   const topAdmin = admin && !!dashboard?.user.top_admin;
   const canManage = (vm: VM) => primaryAdmin || vm.owner_id === dashboard?.user.id;
+  // User < Admin < primary < top: account actions only reach lower levels.
+  const rank = (u: User) => u.role !== "admin" ? 0 : u.top_admin ? 3 : u.primary_admin ? 2 : 1;
+  const below = (u: User) => admin && !!dashboard && rank(dashboard.user) > rank(u);
   // After submitting, admins land on the matching approval queue; users on their request status.
   function showRequest(section: StatusSection) {
     if (dashboard?.user.role === "admin") { setApprovalSection(section); setTab("approvals"); }
@@ -539,6 +542,8 @@ function App() {
                             <td data-label="CPU / RAM"><ResourceUsage runtime={vm.status==="ready"?runtime[vm.id]:undefined}/></td>
                             <td><div className="vm-actions">
                               <ActionMenu className="vm-action-menu" label="จัดการ" ariaLabel={`จัดการ ${vm.hostname}`}>
+                              {/* The account created in the VM is the owner's alone; the API withholds it from everyone else. */}
+                              {vm.owner_id===dashboard?.user.id&&(()=>{const guest=requests.find(r=>r.id===vm.request_id)?.guest_username;return guest&&<p className="menu-info">บัญชีในเครื่อง VM <strong>{guest}</strong></p>;})()}
                               {admin&&vm.status==="needs_review"&&recoverableProvisions.some(job=>job.vm_id===vm.id)&&<button disabled={busy} onClick={()=>void resumeProvision(recoverableProvisions.find(job=>job.vm_id===vm.id)!)}>{recoverableClones.some(job=>job.vm_id===vm.id)?"ตรวจและทำต่อจาก Clone เดิม (Admin)":"ตรวจและทำต่อจากขั้นที่ค้าง (Admin)"}</button>}
                               {admin&&vm.status==="needs_review"&&jobs.some(job=>job.vm_id===vm.id&&needsAttention(job))&&<button className="danger" disabled={busy} onClick={()=>void closeJob(jobs.find(job=>job.vm_id===vm.id&&needsAttention(job))!)}>ทำต่อไม่ได้ · ปิดงานและแจ้งผู้ใช้ (Admin)</button>}
                               <button type="button" aria-label={`อัปเดต IP / สถานะ ${vm.hostname}`} disabled={busy||(!["ready","missing","needs_review"].includes(vm.status)||vm.vmid===null)} onClick={()=>void act(async()=>{const presence=await api<{status:string}>(`/vms/${vm.id}/presence`,{});await refresh();if(presence.status==="ready"){const info=await api<Runtime>(`/vms/${vm.id}/runtime`);setRuntime(previous=>({...previous,[vm.id]:info}));}})}>{vm.status==="ready"?"อัปเดต IP":"ตรวจสถานะ"}</button>
@@ -752,7 +757,7 @@ function App() {
                 {deleteTarget&&<DeleteUserDialog user={deleteTarget} api={api} onClose={()=>setDeleteTarget(null)} onDone={()=>{setDeleteTarget(null);setNotice("รับคำขอลบผู้ใช้แล้ว ตรวจผลการลบ VM ได้ที่กิจกรรม");void refresh();}}/>}
                 {users.filter(u=>u.status!=="deleted").map((u) => (
                   <article className={`request section-head account-row${selectedQuotaUsers.includes(u.id)?" is-selected":""}`} key={u.id}>
-                    {selectingUsers&&!["deleted","deleting"].includes(u.status)&&(primaryAdmin||u.role!=="admin")&&<label className="checkbox-label account-select"><input type="checkbox" aria-label={`เลือก ${u.username}`} checked={selectedQuotaUsers.includes(u.id)} onChange={e=>setSelectedQuotaUsers(ids=>e.target.checked?[...ids,u.id]:ids.filter(id=>id!==u.id))}/></label>}
+                    {selectingUsers&&!["deleted","deleting"].includes(u.status)&&below(u)&&<label className="checkbox-label account-select"><input type="checkbox" aria-label={`เลือก ${u.username}`} checked={selectedQuotaUsers.includes(u.id)} onChange={e=>setSelectedQuotaUsers(ids=>e.target.checked?[...ids,u.id]:ids.filter(id=>id!==u.id))}/></label>}
                     <div className="account-info">
                       <strong>{u.username}</strong>
                       {(u.first_name||u.last_name)&&<p>{u.first_name} {u.last_name}</p>}
@@ -765,11 +770,11 @@ function App() {
                     {(()=>{
                       const live=!["deleted","deleting"].includes(u.status),self=u.id===dashboard?.user.id;
                       const items=[
-                        live&&(primaryAdmin||u.role!=="admin")&&<button key="quota" className="resource-edit" aria-label="แก้ไขสิทธิ์ใช้ทรัพยากร" disabled={busy} onClick={()=>{setRecoveryTarget(null);setQuotaTarget([u]);}}>ปรับทรัพยากร</button>,
-                        u.status==="approved"&&!u.top_admin&&(u.role!=="admin"||(primaryAdmin&&(topAdmin||!u.primary_admin)))&&<button key="recovery" aria-label="ออกโค้ดกู้คืน Portal" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(u);}}>โค้ดกู้คืน</button>,
-                        primaryAdmin&&u.status==="approved"&&!u.primary_admin&&!self&&<button key="role" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(null);setRoleTarget(u);}}>{u.role==="admin"?"ลดเป็นผู้ใช้":"ยกระดับเป็น Admin"}</button>,
+                        live&&below(u)&&<button key="quota" className="resource-edit" aria-label="แก้ไขสิทธิ์ใช้ทรัพยากร" disabled={busy} onClick={()=>{setRecoveryTarget(null);setQuotaTarget([u]);}}>ปรับทรัพยากร</button>,
+                        u.status==="approved"&&below(u)&&<button key="recovery" aria-label="ออกโค้ดกู้คืน Portal" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(u);}}>โค้ดกู้คืน</button>,
+                        primaryAdmin&&u.status==="approved"&&below(u)&&<button key="role" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(null);setRoleTarget(u);}}>{u.role==="admin"?"ลดเป็นผู้ใช้":"ยกระดับเป็น Admin"}</button>,
                         topAdmin&&u.status==="approved"&&u.role==="admin"&&!u.top_admin&&!self&&<button key="primary" disabled={busy} onClick={()=>{setQuotaTarget(null);setRecoveryTarget(null);setPrimaryTarget(u);}}>{u.primary_admin?"ถอนสิทธิ์ผู้ดูแลหลัก":"มอบสิทธิ์ผู้ดูแลหลัก"}</button>,
-                        primaryAdmin&&u.role!=="admin"&&!self&&live&&<button key="delete" className="danger menu-danger" disabled={busy} onClick={()=>setDeleteTarget(u)}>ลบผู้ใช้</button>,
+                        primaryAdmin&&below(u)&&live&&<button key="delete" className="danger menu-danger" disabled={busy} onClick={()=>setDeleteTarget(u)}>ลบผู้ใช้</button>,
                       ].filter(Boolean);
                       return items.length>0&&<ActionMenu className="account-action-menu" label="จัดการ" ariaLabel={`จัดการ ${u.username}`}>{items}</ActionMenu>;
                     })()}

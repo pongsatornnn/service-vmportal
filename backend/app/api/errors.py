@@ -99,7 +99,6 @@ MESSAGES = {
     "Top administrator required": "คำสั่งนี้สงวนไว้สำหรับผู้ดูแลสูงสุด",
     "The top administrator keeps primary rights": "เปลี่ยนสิทธิ์ของผู้ดูแลสูงสุดหรือของตนเองไม่ได้",
     "Only an approved admin can hold primary rights": "มอบสิทธิ์ผู้ดูแลหลักได้เฉพาะ Admin ที่อนุมัติแล้ว ยกระดับบัญชีเป็น Admin ก่อน",
-    "Primary administrator roles cannot be changed": "เปลี่ยนสิทธิ์ของผู้ดูแลหลักหรือของตนเองไม่ได้",
     "Only an approved account can change role": "เปลี่ยนสิทธิ์ได้เฉพาะบัญชีที่อนุมัติแล้ว",
     "Account already has this role": "บัญชีนี้มีสิทธิ์ระดับนี้อยู่แล้ว กรุณาโหลดข้อมูลล่าสุด",
     "Admin required": "คำสั่งนี้ต้องใช้สิทธิ์ผู้ดูแลระบบ",
@@ -126,7 +125,6 @@ MESSAGES = {
     "An operation is already active": "VM นี้มีคำสั่งกำลังทำงาน กรุณารอให้เสร็จก่อน",
     "VM hostname confirmation does not match": "ชื่อ VM ที่พิมพ์ยืนยันไม่ตรง กรุณาตรวจชื่อเครื่อง",
     "Username confirmation does not match": "ชื่อบัญชีที่พิมพ์ยืนยันไม่ตรง กรุณาตรวจชื่อผู้ใช้",
-    "Administrator accounts cannot be deleted": "ไม่อนุญาตให้ลบบัญชี Admin หรือบัญชีของตนเอง",
     "Account VM list changed; reload deletion preview": "รายการ VM ของบัญชีเปลี่ยนไป กรุณาปิดหน้าต่างแล้วเปิดตรวจรายการลบใหม่",
     "Account deletion already requested": "บัญชีนี้ถูกลบหรืออยู่ระหว่างลบแล้ว กรุณาตรวจสถานะล่าสุด",
     "Account deletion is in progress": "บัญชีเจ้าของกำลังถูกลบ จึงไม่สามารถสั่งงาน VM เพิ่มได้",
@@ -159,7 +157,7 @@ MESSAGES = {
     "Guest Agent is unavailable; check agent=1, running service and VM.GuestAgent.Audit": "QEMU Guest Agent ใน VM ไม่ตอบสนอง จึงรีเซ็ตรหัสและอ่าน IP ไม่ได้ ให้ติดตั้งและเปิด qemu-guest-agent ภายใน VM (sudo apt install -y qemu-guest-agent แล้ว sudo systemctl enable --now qemu-guest-agent)",
     "Guest Agent does not enable guest-set-user-password": "QEMU Guest Agent ใน VM ปิดคำสั่งตั้งรหัสผ่านไว้ กรุณาตรวจการตั้งค่า qemu-guest-agent ภายใน VM",
     "VM must be running for Guest Agent password reset": "ต้องเปิด VM ก่อนจึงจะรีเซ็ตรหัสได้",
-    "Only primary administrators set quotas for admins": "Admin ทั่วไปปรับทรัพยากรได้เฉพาะบัญชีผู้ใช้ทั่วไป",
+    "Only accounts below your level can be managed": "จัดการได้เฉพาะบัญชีที่มีระดับต่ำกว่าคุณ (ผู้ใช้ < Admin < ผู้ดูแลหลัก < ผู้ดูแลสูงสุด)",
 }
 
 

@@ -47,7 +47,7 @@ export function UserGuide() {
       </tbody></table></div>
     </>},
     {id:"connect",title:"5. เข้าเครื่องผ่าน SSH",keywords:"ssh เข้าเครื่อง terminal putty key password ip",body:<>
-      <p>ใช้ IP จากหน้า เครื่องเสมือน และ VM username ที่ตั้งตอนขอ:</p>
+      <p>ใช้ IP จากหน้า เครื่องเสมือน และ VM username ที่ตั้งตอนขอ (ดูได้ที่ <strong>จัดการ</strong> ของ VM บรรทัดบนสุด แสดงให้เจ้าของเห็นเท่านั้น ผู้ดูแลก็ดูไม่ได้):</p>
       <Command where="เครื่องของคุณ (Terminal / PowerShell)" text="ssh ubuntu@192.168.1.50"/>
       <p>ถ้าเลือก SSH public key ให้ใช้ private key คู่กัน เช่น <code>ssh -i ~/.ssh/id_ed25519 ubuntu@192.168.1.50</code> ถ้าเลือก Password การเข้า SSH ด้วยรหัสขึ้นกับ Template ที่ผู้ดูแลเตรียมไว้ ถ้าเข้าไม่ได้ให้ใช้ Console แทน</p>
     </>},

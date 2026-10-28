@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.adapters.proxmox import ProxmoxError, make_adapter
-from app.core.security import manages_all, passwords
+from app.core.security import passwords, require_outranks
 from app.models import PasswordRecovery, VMPasswordReset
 from app.repositories.portal import PortalRepository
 from app.services.configuration import ConfigurationService
@@ -51,13 +51,9 @@ class PasswordService:
         target = self.repo.lock_user(user_id)
         if not target or target.status != "approved":
             raise HTTPException(404, "Approved account not found")
-        # A recovery code takes over the account: any admin may issue one for a
-        # user, a primary admin for an admin, only the top admin for a primary
-        # admin, and nobody for the top admin (use the server CLI).
-        if target.role == "admin" and not manages_all(actor):
-            raise HTTPException(403, "Primary administrator required")
-        if target.top_admin or (target.primary_admin and not actor.top_admin):
-            raise HTTPException(403, "Top administrator required")
+        # A recovery code takes over the account, so it only reaches lower
+        # levels; the top admin recovers through the server CLI.
+        require_outranks(actor, target)
         self.invalidate_codes(target.id)
         raw = secrets.token_urlsafe(32)
         expiry = datetime.now(UTC) + timedelta(minutes=15)

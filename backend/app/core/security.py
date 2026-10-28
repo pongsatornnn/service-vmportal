@@ -72,6 +72,19 @@ def manages_all(user):
     return user.role == "admin" and user.primary_admin
 
 
+def rank(user):
+    """User < admin < primary admin < top admin."""
+    if user.role != "admin":
+        return 0
+    return 3 if user.top_admin else 2 if user.primary_admin else 1
+
+
+def require_outranks(actor, target):
+    """Account actions only reach accounts below the actor's own level."""
+    if rank(actor) <= rank(target):
+        raise HTTPException(403, "Only accounts below your level can be managed")
+
+
 def credential_expiry(credentials):
     try:
         payload = jwt.decode(

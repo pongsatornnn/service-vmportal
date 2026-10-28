@@ -270,6 +270,8 @@ select option { background: #fff; color: #20364e; }
 .dropdown-panel { z-index: 100; width: 260px; max-width: calc(100vw - 24px); overflow-y: auto; padding: 7px; background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 40px #152c4526; display: grid; gap: 3px; }
 .dropdown-panel button { width: 100%; text-align: left; border-color: transparent; padding: 11px 13px; min-height: 46px; font-size: 15px; }
 .dropdown-panel button:focus-visible { outline-offset: -3px; }
+.dropdown-panel .menu-info { margin: 0; padding: 9px 13px 11px; border-bottom: 1px solid #ebedf1; color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.dropdown-panel .menu-info strong { display: block; color: var(--text); font-size: 15px; }
 .dropdown-panel .danger { color: #b13742; }
 .dropdown-panel .danger:hover { background: #fff0f1; }
 .dropdown-panel .menu-danger { border-top: 1px solid #ebedf1; border-radius: 0 0 8px 8px; margin-top: 5px; padding-top: 14px; }

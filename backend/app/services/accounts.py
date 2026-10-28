@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException
 from sqlalchemy import select
 
-from app.core.security import passwords
+from app.core.security import passwords, require_outranks
 from app.models import (
     VM,
     Job,
@@ -39,8 +39,7 @@ class AccountService:
         user = self.repo.lock_user(user_id)
         if not user:
             raise HTTPException(404, "User not found")
-        if user.id == actor.id or user.role == "admin":
-            raise HTTPException(409, "Administrator accounts cannot be deleted")
+        require_outranks(actor, user)
         if user.status in {"deleting", "deleted"}:
             raise HTTPException(409, "Account deletion already requested")
         if data.confirm_username != user.username:
@@ -164,8 +163,7 @@ class AccountService:
         user = self.repo.lock_user(user_id)
         if not user or user.status in {"deleting", "deleted"}:
             raise HTTPException(404, "User not found")
-        if user.id == actor.id or user.primary_admin:
-            raise HTTPException(409, "Primary administrator roles cannot be changed")
+        require_outranks(actor, user)
         if user.status != "approved":
             raise HTTPException(409, "Only an approved account can change role")
         if data.confirm_username != user.username:
@@ -173,6 +171,9 @@ class AccountService:
         if user.role == data.role:
             raise HTTPException(409, "Account already has this role")
         previous, user.role = user.role, data.role
+        if data.role == "user":
+            # Primary rights only exist on admin accounts.
+            user.primary_admin = False
         self.repo.audit(
             actor.id, "user.role.changed", user.id, previous=previous, role=data.role
         )

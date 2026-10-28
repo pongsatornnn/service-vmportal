@@ -38,7 +38,7 @@ from app.core.security import (
     DUMMY_HASH,
     admin,
     current_user,
-    manages_all,
+    require_outranks,
     passwords,
     primary_admin,
     token,
@@ -391,12 +391,6 @@ def check(user=Depends(admin), db: Session = Depends(get_db)):
     return ConfigurationService(db).check(user)
 
 
-def admin_quota_check(actor, target):
-    # Regular admins size ordinary users only, never another admin's quota.
-    if target.role == "admin" and not manages_all(actor):
-        raise HTTPException(403, "Only primary administrators set quotas for admins")
-
-
 @router.post("/admin/users/{user_id}/quota")
 def quota(
     user_id: PortalID,
@@ -408,7 +402,7 @@ def quota(
     target = repo.lock_user(user_id)
     if not target:
         raise HTTPException(404, "User not found")
-    admin_quota_check(user, target)
+    require_outranks(user, target)
     if target.status in {"deleting", "deleted"}:
         raise HTTPException(409, "Account deletion is in progress")
     usage = repo.usage(user_id)
@@ -432,7 +426,7 @@ def bulk_quota(data: BulkQuota, user=Depends(admin), db: Session = Depends(get_d
         target = repo.lock_user(user_id)
         if not target:
             raise HTTPException(404, "User not found")
-        admin_quota_check(user, target)
+        require_outranks(user, target)
         if target.status in {"deleting", "deleted"}:
             raise HTTPException(409, "Account deletion is in progress")
         usage = repo.usage(user_id)
@@ -621,6 +615,7 @@ def deletion_preview(
     target = db.get(User, user_id)
     if not target:
         raise HTTPException(404, "User not found")
+    require_outranks(user, target)
     machines = db.scalars(
         select(VM)
         .where(VM.owner_id == target.id, VM.status != "deleted")
