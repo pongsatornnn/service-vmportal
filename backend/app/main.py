@@ -19,7 +19,8 @@ app = FastAPI(
     version="0.1.0",
     docs_url=None,
     redoc_url=None,
-    openapi_url="/api/openapi.json",
+    # The API schema is not published; it would list every admin endpoint.
+    openapi_url=None,
 )
 app.include_router(router)
 app.include_router(password_router)

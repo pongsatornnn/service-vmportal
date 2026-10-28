@@ -927,6 +927,16 @@ KillMode=mixed
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
+# The account may own a home folder and the code; the services can only read
+# them and write nothing but the portal's own data.
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths={STATE}
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
 
 [Install]
 WantedBy=multi-user.target

@@ -8,7 +8,7 @@ cd service-vmportal
 sudo bash setup-server.sh
 ```
 
-**ระบบรันจากโฟลเดอร์ที่ clone ไว้เลย** ไม่ copy ไปที่อื่น: ติดตั้ง Python packages ใน `.venv` และ build หน้าเว็บใน `frontend/dist` ของโฟลเดอร์นั้น **บริการรันด้วยบัญชีที่สั่ง `sudo bash setup-server.sh`** (ไม่ใช่ root และไม่สร้าง user แยก) บัญชีนี้เป็นเจ้าของโฟลเดอร์ เป็นผู้ build และเขียนข้อมูลของ Portal ใน `/var/lib/vmportal` จึง clone ไว้ใน home ได้ ถ้าโฟลเดอร์เป็นของบัญชีอื่น (เช่น clone ด้วย `sudo git clone`) ตัวติดตั้งจะโอนให้บัญชีนี้ และไฟล์ที่ root ทิ้งไว้จะถูกโอนคืนทุกครั้ง จึง `git pull` ได้ตามปกติโดยไม่ต้องใช้ sudo ตัวติดตั้งไม่ยอมให้บริการรันเป็น root
+**ระบบรันจากโฟลเดอร์ที่ clone ไว้เลย** ไม่ copy ไปที่อื่น: ติดตั้ง Python packages ใน `.venv` และ build หน้าเว็บใน `frontend/dist` ของโฟลเดอร์นั้น **บริการรันด้วยบัญชีที่สั่ง `sudo bash setup-server.sh`** (ไม่ใช่ root และไม่สร้าง user แยก) บัญชีนี้เป็นเจ้าของโฟลเดอร์ เป็นผู้ build และเขียนข้อมูลของ Portal ใน `/var/lib/vmportal` จึง clone ไว้ใน home ได้ ถ้าโฟลเดอร์เป็นของบัญชีอื่น (เช่น clone ด้วย `sudo git clone`) ตัวติดตั้งจะโอนให้บัญชีนี้ และไฟล์ที่ root ทิ้งไว้จะถูกโอนคืนทุกครั้ง จึง `git pull` ได้ตามปกติโดยไม่ต้องใช้ sudo ตัวติดตั้งไม่ยอมให้บริการรันเป็น root บริการถูกจำกัดด้วย systemd ให้อ่านโค้ดและโฟลเดอร์ home ได้อย่างเดียว เขียนได้แค่ `/var/lib/vmportal` และใช้ sudo ไม่ได้ แม้ Portal ถูกเจาะก็แก้โค้ด, `~/.ssh` หรือไฟล์ระบบไม่ได้
 
 ตัวติดตั้งดาวน์โหลด dependencies จาก Ubuntu package sources, ติดตั้ง Python packages ตาม lockfile และ build frontend โดยไม่ต้องเรียกคำสั่งติดตั้งอื่นเอง ข้อความในตัวติดตั้งเป็นภาษาอังกฤษ
 
