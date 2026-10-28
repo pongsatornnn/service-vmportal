@@ -27,7 +27,11 @@ Portal เปิด HTTPS เองโดยตรง (Uvicorn) และเส�
 
 DB ที่เตรียมไว้ต้องว่างหรือเป็น DB ของ VM Portal และ User ต้องมีสิทธิ์สร้าง/แก้ไขตารางของ Portal ใน schema `public` กรณี DB ภายนอกจะเชื่อมต่อด้วย TLS (`sslmode=require`) ต้องมี PostgreSQL client ที่รองรับเวอร์ชัน Server สำหรับ `pg_dump` ด้วย
 
-ระบบเปิดเว็บด้วย HTTPS เท่านั้น ไม่สร้าง HTTP endpoint ของ Portal ตัว API เปิดรับ HTTPS โดยตรง (IPv4) ส่วน Redis รับเฉพาะ loopback หากมี firewall หรือ security group ให้เปิด TCP port HTTPS ที่เลือก ตัวติดตั้งไม่แก้ firewall rule ของเครื่อง
+ระบบเปิดเว็บด้วย HTTPS เท่านั้น ไม่สร้าง HTTP endpoint ของ Portal ตัว API เปิดรับ HTTPS โดยตรง (IPv4) ส่วน Redis รับเฉพาะ loopback ถ้า UFW เปิดอยู่และยังไม่อนุญาต port ที่เลือก ตัวติดตั้งจะถามก่อนเพิ่ม rule (`ufw allow PORT/tcp comment vmportal`) และเมื่อเปลี่ยน port ภายหลังจะลบ rule เดิมที่ตัวเองเพิ่มไว้ ส่วน firewall อื่นหรือ security group ต้องเปิดเอง
+
+Redis ของ package `redis-server` ที่ apt ติดตั้งให้ (port 6379) จะถูกปิดและไม่เปิดตอน boot เพราะ Portal ใช้ Redis ของตัวเอง ถ้าเครื่องมี `redis-server` อยู่ก่อนแล้ว ตัวติดตั้งไม่ยุ่งกับมัน ตัวติดตั้งรอ apt ที่ทำงานอยู่เบื้องหลัง (เช่น apt-daily) ได้นานสุด 10 นาทีแทนการล้มเหลว
+
+บริการทั้งหมดรันภายใต้ systemd sandbox: เขียนได้เฉพาะ `/var/lib/vmportal`, อ่าน home/โค้ดได้อย่างเดียว, ไม่มี capability (ยกเว้น bind port < 1024), จำกัด system call ตาม `@system-service` และ socket เฉพาะ IPv4/IPv6/Unix/Netlink คะแนน `systemd-analyze security` ประมาณ 1.6 (OK)
 
 Self-signed ใช้เข้ารหัส HTTPS ได้ แต่ browser จะยังแจ้งว่าไม่เชื่อถือ ให้ใช้ใบรับรององค์กร/โดเมนเมื่อพร้อม; รันตัวติดตั้งซ้ำเพื่อเลือก certificate ใหม่ได้ ตัวติดตั้งตรวจวันหมดอายุ ชื่อ Domain/IP และตรวจว่า private key ตรงกับ certificate
 
@@ -81,7 +85,7 @@ sudo bash setup-server.sh
 
 | สิ่งที่เปลี่ยน | ผลกระทบที่ตัวติดตั้งเตือน |
 |---|---|
-| URL path / HTTPS port / Hostname | ผู้ใช้ต้องเปิด URL ใหม่ ลิงก์เดิมใช้ไม่ได้ ต้องเปิด port ใหม่ใน firewall, certificate ต้องครอบคลุม hostname ใหม่ และถ้าเปลี่ยน URL path ระบบจะ build หน้าเว็บใหม่ให้ |
+| URL path / HTTPS port / Hostname | ผู้ใช้ต้องเปิด URL ใหม่ ลิงก์เดิมใช้ไม่ได้ ต้องเปิด port ใหม่ใน firewall (UFW ตัวติดตั้งเปิดให้และปิด port เดิม), certificate ต้องครอบคลุม hostname ใหม่ และถ้าเปลี่ยน URL path ระบบจะ build หน้าเว็บใหม่ให้ |
 | Certificate | Browser เห็นใบรับรองใหม่ ถ้าเป็น self-signed ผู้ใช้ต้องกดยอมรับใหม่ |
 | Database | Portal จะแสดงข้อมูลของ DB ใหม่ ไม่ย้ายข้อมูลจาก DB เดิม และทุกคนต้อง Login ใหม่ |
 | ติดตั้งเดิมใช้ Nginx | หยุดและลบ `vmportal-web.service` ของ Portal แล้วให้ Portal เปิด HTTPS เอง แพ็กเกจ Nginx ยังอยู่สำหรับเว็บอื่น |

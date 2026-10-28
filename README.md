@@ -10,7 +10,7 @@ FastAPI + PostgreSQL + Redis/Celery + React ติดตั้งบน Ubuntu �
 
 - เครื่อง **Ubuntu 24.04 LTS** ที่มีบัญชีที่ใช้ `sudo` ได้ และต่อ Internet ระหว่างติดตั้งหรืออัปเดต (apt, pip, npm)
 - **Proxmox VE** ที่มี API Token และ Template ที่มี Cloud-Init กับ QEMU Guest Agent (ตั้งค่าในเว็บหลังติดตั้ง)
-- port HTTPS ที่จะใช้ (เช่น 443 หรือ 8443) เปิดไว้ใน firewall ตัวติดตั้งไม่แก้ firewall ให้
+- ถ้าเครื่องเปิด **UFW** อยู่ ตัวติดตั้งจะถามว่าจะเปิด port HTTPS ให้ไหม (ตอบ Y) ถ้าใช้ firewall อื่นหรือ security group ของ Cloud ต้องเปิด port เอง
 
 ### 1. Clone และรันตัวติดตั้ง
 
@@ -22,6 +22,7 @@ cd service-vmportal
 sudo bash setup-server.sh
 ```
 
+- Repository นี้เป็น private ต้อง login GitHub ตอน clone (ใช้ Personal Access Token แทนรหัสผ่าน) หรือ copy โฟลเดอร์มาจากเครื่องอื่นก็ได้
 - **ไม่ต้องใช้ `sudo git clone`**: บริการทั้งหมดรันด้วยบัญชีที่สั่ง `sudo bash setup-server.sh` บัญชีนี้เป็นผู้ build และเป็นเจ้าของไฟล์ ถ้าโฟลเดอร์เป็นของบัญชีอื่น ตัวติดตั้งจะโอนความเป็นเจ้าของให้
 - Portal **รันจากโฟลเดอร์ที่ clone ไว้** ห้ามลบหรือย้ายโฟลเดอร์นี้หลังติดตั้ง ถ้าย้าย ให้รันตัวติดตั้งซ้ำจากที่ใหม่
 - ไม่ใช้ Docker และไม่ต้องใช้ Nginx เพราะ Portal เปิด HTTPS เอง

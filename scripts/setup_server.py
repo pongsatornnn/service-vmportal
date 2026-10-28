@@ -308,6 +308,36 @@ def port_available(port):
         return False
 
 
+def ufw_rules():
+    """UFW's rule listing when the firewall is active, otherwise None."""
+    if not shutil.which("ufw"):
+        return None
+    result = subprocess.run(["ufw", "status"], capture_output=True, text=True)
+    if result.returncode or not result.stdout.startswith("Status: active"):
+        return None
+    return result.stdout
+
+
+def ufw_allows(rules, port):
+    return bool(re.search(rf"^{port}(/tcp)?\s+ALLOW", rules, re.MULTILINE))
+
+
+def firewall_choice(old, port):
+    """Offer to open the HTTPS port when UFW would block it; returns the port to open."""
+    rules = ufw_rules()
+    if rules is None:
+        return old.get("ufw_port") if old.get("ufw_port") == port else None
+    if ufw_allows(rules, port):
+        # Keep tracking a rule this installer added earlier.
+        return port if old.get("ufw_port") == port else None
+    if yes(f"UFW is active and blocks port {port}. Allow it so other machines can open the portal?", True):
+        return port
+    print(
+        f"WARNING: other machines cannot reach the portal until port {port}/tcp is allowed in the firewall."
+    )
+    return None
+
+
 def active(service):
     return (
         subprocess.run(
@@ -392,6 +422,7 @@ def collect(old, old_env, action="install"):
     )
     if ":" in host:
         raise SetupError("Use an IPv4 address or a hostname that resolves to IPv4.")
+    ufw_port = firewall_choice(old, port)
     tls_mode = choose(
         "HTTPS certificate",
         (
@@ -446,6 +477,7 @@ def collect(old, old_env, action="install"):
         database_mode=mode,
         create_db=create,
         redis_port=redis_port,
+        ufw_port=ufw_port,
         redis_namespace=(
             old.get("redis_namespace") if old_env.get("DATABASE_URL") == url else None
         )
@@ -495,7 +527,7 @@ def describe_changes(old, old_env, plan):
         warning = (
             "Users must open the new address; old bookmarks and links stop working."
         )
-        if plan["port"] != old.get("port"):
+        if plan["port"] != old.get("port") and not plan.get("ufw_port"):
             warning += f" Allow TCP {plan['port']} in any firewall or security group."
         if plan["host"] != old.get("host") and plan["tls_mode"] == "1":
             warning += f" The current certificate must also cover {plan['host']}."
@@ -526,6 +558,22 @@ def describe_changes(old, old_env, plan):
                 "Database",
                 f"{database_label(old_env['DATABASE_URL'])} -> {database_label(plan['env']['DATABASE_URL'])}",
                 "The portal will show the data in the selected database; nothing is copied from the old one. Everyone is signed out.",
+            )
+        )
+    if plan.get("ufw_port") and plan["ufw_port"] != old.get("ufw_port"):
+        changes.append(
+            (
+                "Firewall",
+                f"UFW allows TCP {plan['ufw_port']}",
+                "Other machines on the network can reach the portal on this port.",
+            )
+        )
+    if old.get("ufw_port") and old["ufw_port"] != plan.get("ufw_port"):
+        changes.append(
+            (
+                "Firewall",
+                f"the UFW rule for TCP {old['ufw_port']} added by this installer is removed",
+                f"Port {old['ufw_port']} is closed again unless another rule allows it.",
             )
         )
     if old.get("web_mode", "nginx") != "direct":
@@ -570,7 +618,7 @@ def postgres_sql(statement, port):
 def create_database(value):
     params = connection_args(value)
     run(
-        ["apt-get", "install", "-y", "postgresql"],
+        ["apt-get", "-o", "DPkg::Lock::Timeout=600", "install", "-y", "postgresql"],
         env=os.environ | {"DEBIAN_FRONTEND": "noninteractive"},
     )
     run(["systemctl", "start", "postgresql"])
@@ -902,7 +950,7 @@ def service_units(plan, release):
         capabilities = (
             "AmbientCapabilities=CAP_NET_BIND_SERVICE\nCapabilityBoundingSet=CAP_NET_BIND_SERVICE"
             if name == "api" and plan["port"] < 1024
-            else ""
+            else "CapabilityBoundingSet="
         )
         result[f"vmportal-{name}.service"] = f"""[Unit]
 Description=VM Portal {name}
@@ -936,7 +984,20 @@ PrivateDevices=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
 RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+# Network clients and servers only: no raw sockets or other kernel interfaces.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
 
 [Install]
 WantedBy=multi-user.target
@@ -1101,7 +1162,12 @@ def apply(plan, old, old_env, release, cert, key, gid):
                 "redis_namespace",
             )
         }
-        manifest.update(release=str(release), status="installing", web_mode="direct")
+        manifest.update(
+            release=str(release),
+            status="installing",
+            web_mode="direct",
+            ufw_port=plan.get("ufw_port"),
+        )
         if not old:
             private_write(
                 CONFIG / "portal.env", environment_text(plan["env"]), 0o640, gid
@@ -1170,6 +1236,7 @@ def apply(plan, old, old_env, release, cert, key, gid):
         )
         health(plan["port"], service_names(plan), plan.get("base_path", ""))
         run(["systemctl", "enable", *service_names(plan)])
+        open_firewall(plan, old)
         publish_assets(release, target)
         manifest["status"] = "ready"
         private_write(CONFIG / "install.json", json.dumps(manifest, indent=2) + "\n")
@@ -1204,6 +1271,15 @@ def apply(plan, old, old_env, release, cert, key, gid):
                     subprocess.run(["systemctl", "stop", name], capture_output=True)
         raise
     return backup
+
+
+def open_firewall(plan, old):
+    """Allow the HTTPS port in UFW and drop a rule this installer added for an old port."""
+    if plan.get("ufw_port"):
+        run(["ufw", "allow", f"{plan['ufw_port']}/tcp", "comment", "vmportal"])
+    previous = old.get("ufw_port")
+    if previous and previous != plan.get("ufw_port") and shutil.which("ufw"):
+        subprocess.run(["ufw", "delete", "allow", f"{previous}/tcp"], capture_output=True)
 
 
 def current_release(old, plan):

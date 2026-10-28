@@ -43,9 +43,18 @@ if [[ "${ID:-}" != ubuntu || "${VERSION_ID:-}" != 24.04 ]]; then
 fi
 printf '%s\n' 'Installing prerequisites from Ubuntu package sources…'
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y python3 python3-venv python3-dev build-essential libpq-dev \
+# Wait for apt jobs that start on their own (apt-daily, unattended-upgrades).
+apt_wait=(-o DPkg::Lock::Timeout=600)
+apt-get "${apt_wait[@]}" update
+# The portal runs its own Redis; the package's default instance is only kept if
+# it was already installed for something else.
+stock_redis_new=0
+dpkg-query -W -f='${Status}' redis-server 2>/dev/null | grep -q 'install ok installed' || stock_redis_new=1
+apt-get "${apt_wait[@]}" install -y python3 python3-venv python3-dev build-essential libpq-dev \
   postgresql-client redis-server nodejs npm openssl rsync ca-certificates
+if (( stock_redis_new )); then
+  systemctl disable --now redis-server.service >/dev/null 2>&1 || true
+fi
 python3 -c 'import sys; assert sys.version_info >= (3, 12), "Python 3.12+ is required"'
 node -e 'if(Number(process.versions.node.split(".")[0])<18)process.exit(1)'
 setup_bootstrap=$(mktemp -d /var/tmp/vmportal-setup.XXXXXXXX)
