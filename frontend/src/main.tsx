@@ -33,7 +33,7 @@ import { RequestStatus } from "./RequestStatus";
 import { thaiTime } from "./time";
 import { TemplateManager } from "./TemplateManager";
 import type { Template } from "./types";
-import { defaultDraft, QuotaCards, quotaShortfall, type Draft } from "./QuotaCheck";
+import { emptyDraft, QuotaCards, quotaShortfall, type Draft } from "./QuotaCheck";
 import { jobDone, trackJobs, trackRequests, useRequestUpdates, type StatusSection } from "./requestUpdates";
 import { AdminRoleForm, PrimaryAdminForm } from "./AdminRole";
 import { ConsolePage } from "./ConsolePage";
@@ -78,7 +78,7 @@ function App() {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>(()=>loadView()?.settingsSection??"connection");
   const [tab, setTab] = useState(()=>loadView()?.tab??"overview");
   useEffect(()=>{if(token&&sessionReady)saveView(tab,settingsSection);},[token,sessionReady,tab,settingsSection]);
-  const [draft, setDraft] = useState<Draft>(defaultDraft);
+  const [draft, setDraft] = useState<Draft>(emptyDraft);
   // Templates users may request now (verified and enabled), loaded with the form.
   const [offered, setOffered] = useState<Pick<Template,"id"|"name"|"description"|"min_disk_gb">[] | null>(null);
   const [templateId, setTemplateId] = useState<number | null>(null);
@@ -286,7 +286,7 @@ function App() {
           vmAuthMethod === "password" ? data.get("vm_password") : undefined,
       });
       form.reset();
-      setDraft(defaultDraft);
+      setDraft(emptyDraft);
       setVmAuthMethod("password");
       setNotice("ส่งคำขอแล้ว รอ Admin อนุมัติ");
       showRequest("create");
@@ -297,7 +297,7 @@ function App() {
     if(tab!=="requests"||!token)return;
     let active=true;
     // Admins receive every template (for management); a request may only use open, verified ones.
-    const load=()=>api<(Template|Pick<Template,"id"|"name"|"description"|"min_disk_gb">)[]>("/templates").then(all=>{if(!active)return;const list=all.filter(t=>!("enabled" in t)||(t.enabled&&t.verified));setOffered(list);setTemplateId(current=>list.some(t=>t.id===current)?current:list.length===1?list[0].id:null);}).catch(()=>{if(active)setOffered([]);});
+    const load=()=>api<(Template|Pick<Template,"id"|"name"|"description"|"min_disk_gb">)[]>("/templates").then(all=>{if(!active)return;const list=all.filter(t=>!("enabled" in t)||(t.enabled&&t.verified));setOffered(list);setTemplateId(current=>list.some(t=>t.id===current)?current:null);}).catch(()=>{if(active)setOffered([]);});
     void load();
     // Templates opened or closed elsewhere show up when the user returns to this tab.
     const reload=()=>{if(document.visibilityState==="visible")void load();};
@@ -306,10 +306,10 @@ function App() {
   },[tab,token]);
   function chooseTemplate(id:number){
     setTemplateId(id);
-    // Raise the disk to the template minimum so the form stays valid.
+    // Raise a typed disk size to the template minimum so the form stays valid; a blank field keeps its placeholder.
     const minimum=offered?.find(t=>t.id===id)?.min_disk_gb??1;
     const disk=document.querySelector<HTMLInputElement>('input[name="disk"]');
-    if(disk&&Number(disk.value)<minimum){disk.value=String(minimum);setDraft(old=>({...old,disk:minimum}));}
+    if(disk&&disk.value!==""&&Number(disk.value)<minimum){disk.value=String(minimum);setDraft(old=>({...old,disk:minimum}));}
   }
   async function decide(path: string, approve: boolean) {
     const reason = await promptAction(
@@ -623,7 +623,7 @@ function App() {
               <div className="request-grid">
                 <section className="panel">
                   <h2>ขอสร้าง Virtual machine</h2>
-                  <form autoComplete="off" data-form-type="other" onSubmit={requestVM} onInput={e=>{const form=e.currentTarget;const read=(name:string)=>Number((form.elements.namedItem(name) as HTMLInputElement|null)?.value)||0;setDraft({cpu:read("cpu"),ram:read("ram"),disk:read("disk")});}} onReset={()=>setDraft(defaultDraft)}>
+                  <form autoComplete="off" data-form-type="other" onSubmit={requestVM} onInput={e=>{const form=e.currentTarget;const read=(name:string)=>Number((form.elements.namedItem(name) as HTMLInputElement|null)?.value)||0;setDraft({cpu:read("cpu"),ram:read("ram"),disk:read("disk")});}} onReset={()=>setDraft(emptyDraft)}>
                     <div className="template-choice">
                       <label htmlFor="vm-template" className="field-title">ระบบปฏิบัติการ (Template)</label>
                       {offered===null?<p className="muted">กำลังโหลด Template…</p>:!offered.length?<p className="alert warning">ยังไม่มี Template ที่เปิดให้ขอ กรุณาติดต่อผู้ดูแล</p>:<>
@@ -652,7 +652,7 @@ function App() {
                           {...wholeNumber}
                           min={1}
                           max={32}
-                          defaultValue={2}
+                          placeholder="2"
                           required
                         />
                       </label>
@@ -663,7 +663,7 @@ function App() {
                           {...wholeNumber}
                           min={512}
                           max={131072}
-                          defaultValue={2048}
+                          placeholder="2048"
                           required
                         />
                       </label>
@@ -674,7 +674,7 @@ function App() {
                           {...wholeNumber}
                           min={chosenTemplate?.min_disk_gb??1}
                           max={2048}
-                          defaultValue={25}
+                          placeholder={String(Math.max(chosenTemplate?.min_disk_gb??10,10))}
                           required
                         />
                       </label>
@@ -683,7 +683,7 @@ function App() {
                       <span className="field-title">VM username<HelpTip label="ข้อกำหนด VM username">ไม่อนุญาต root หรือบัญชีระบบ</HelpTip></span>
                       <input id="vm-guest-username" aria-label="VM username"
                         name="guest_username"
-                        defaultValue="ubuntu"
+                        placeholder="ubuntu"
                         required
                         minLength={3}
                         maxLength={32}

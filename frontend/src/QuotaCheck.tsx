@@ -2,6 +2,8 @@ import type { Dashboard } from "./types";
 
 export type Draft={cpu:number;ram:number;disk:number};
 export const defaultDraft:Draft={cpu:2,ram:2048,disk:25};
+// The request form starts blank: fields show placeholders until the user types.
+export const emptyDraft:Draft={cpu:0,ram:0,disk:0};
 const items:[keyof Draft|"vms",string,string][]=[["vms","VM",""],["cpu","vCPU",""],["ram","RAM"," MiB"],["disk","Disk"," GiB"]];
 
 // What is still free once approved VMs and pending requests are counted.

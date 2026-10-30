@@ -21,7 +21,7 @@ export function NetworkPicker({networks,choices,busy,onChange}:{networks:string[
       <div className="network-rows">{rows.map((bridge,index)=><div className="network-choice" key={index}>
         <span className="network-number">ขา {index+1}</span>
         <label className="sr-only" htmlFor={`network-${index}`}>Bridge ของขา {index+1}</label>
-        <ResourcePicker id={`network-${index}`} label={`Bridge ของขา ${index+1}`} value={bridge} options={options.map(value=>({value,label:value}))} pattern="[A-Za-z0-9_.-]{1,63}" disabled={busy} onChange={value=>onChange(rows.map((previous,i)=>i===index?value:previous))}/>
+        <ResourcePicker id={`network-${index}`} label={`Bridge ของขา ${index+1}`} value={bridge} options={options.map(value=>({value,label:value}))} pattern="[A-Za-z0-9_.-]{1,63}" placeholder="vmbr0" disabled={busy} onChange={value=>onChange(rows.map((previous,i)=>i===index?value:previous))}/>
 
         <button type="button" className="network-remove" disabled={rows.length===1} aria-label={`ลบขา ${index+1}`} onClick={()=>onChange(rows.filter((_,i)=>i!==index))}>×</button>
       </div>)}</div>

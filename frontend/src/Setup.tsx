@@ -125,17 +125,17 @@ type State = {
 };
 const defaults: Values = {
   mode: "real",
-  url: "https://10.80.48.6:8006",
-  token_id: "vmportal@pve!portal-api",
+  url: "",
+  token_id: "",
   ca_pem: "",
-  node: "Node3",
-  pool: "Portal-Service",
+  node: "",
+  pool: "",
   template: 9000,
-  storage: "local-lvm",
-  bridge: "VLAN48",
+  storage: "",
+  bridge: "",
   secondary_bridge: "",
-  network_bridges: ["VLAN48"],
-  bridge_allowlist: ["VLAN48"],
+  network_bridges: [],
+  bridge_allowlist: [],
   template_disk_gb: 20,
   disk_device: "scsi0",
   ssh_password_snippet: "",
@@ -174,16 +174,20 @@ export function ConnectionSetup({
       if(sequence!==discoverySequence.current)return;
       setResources(result);
       if(result.nodes.length)setKnownNodes(result.nodes);
+      // Fill blank fields Proxmox leaves no choice about; the rest keep their placeholders.
+      if(autofill&&!next.node&&result.nodes.length===1){selectedNode.current=result.nodes[0];selectResource("node",result.nodes[0],next);return;}
       if(autofill)setValues(current=>{
-        const updated={...current,storage:current.storage||(result.storages.length===1?result.storages[0]:""),pool:current.pool||(result.pools.length===1?result.pools[0]:"")};
-        if(updated.storage!==current.storage||updated.pool!==current.pool)setDirty(true);
+        const only=(list:string[])=>list.length===1?list[0]:"";
+        const networks=current.network_bridges.some(Boolean)?current.network_bridges:only(result.bridges)?[only(result.bridges)]:current.network_bridges;
+        const updated={...current,storage:current.storage||only(result.storages),pool:current.pool||only(result.pools),network_bridges:networks,bridge:networks[0]||"",secondary_bridge:networks[1]||""};
+        if(updated.storage!==current.storage||updated.pool!==current.pool||networks!==current.network_bridges)setDirty(true);
         return updated;
       });
     } catch(e){if(sequence===discoverySequence.current){setResources(null);setDiscoveryError(explainError(e));}}
     finally{if(sequence===discoverySequence.current)setDiscovering(false);}
   }
-  function selectResource(key:"node"|"pool"|"storage",value:string){
-    let next={...values,[key]:value};
+  function selectResource(key:"node"|"pool"|"storage",value:string,base=values){
+    let next={...base,[key]:value};
     if(key==="node")next={...next,storage:"",bridge:"",secondary_bridge:"",network_bridges:[""],bridge_allowlist:[]};
     setValues(next);setDirty(true);
     if(key==="node"){setResources(old=>old?{...old,storages:[],bridges:[],templates:[],disks:[],boot_disk:null}:null);void discover(next);}
@@ -195,7 +199,7 @@ export function ConnectionSetup({
   }
   function resourceSelect(key:"node"|"pool"|"storage",label:string){
     const options=resourceOptions(key),current=String(values[key]||"");
-    return <ResourcePicker id={`setup-${key}`} label={label} value={current} options={options} pattern="[A-Za-z0-9_.-]{1,63}" disabled={busy||discovering} onChange={value=>{setValues(old=>({...old,[key]:value}));setDirty(true);}}/>;
+    return <ResourcePicker id={`setup-${key}`} label={label} value={current} options={options} pattern="[A-Za-z0-9_.-]{1,63}" placeholder={key==="storage"?"local-lvm":"Portal-Service"} disabled={busy||discovering} onChange={value=>{setValues(old=>({...old,[key]:value}));setDirty(true);}}/>;
 
   }
 
@@ -209,7 +213,7 @@ export function ConnectionSetup({
       .then((s) => {
         if(!active)return;
         setState(s);
-        const networks=s.values.network_bridges?.length?s.values.network_bridges:[s.values.bridge||defaults.bridge,...(s.values.secondary_bridge?[s.values.secondary_bridge]:[])];
+        const networks=s.values.network_bridges?.length?s.values.network_bridges:[s.values.bridge||"",...(s.values.secondary_bridge?[s.values.secondary_bridge]:[])].filter(Boolean);
         const loaded={ ...defaults, ...s.values,network_bridges:networks };
         setValues(loaded);
         selectedNode.current=loaded.node;
@@ -368,7 +372,7 @@ export function ConnectionSetup({
           </div>
           <div className="setup-step-heading"><h3>เลือกที่สร้าง VM</h3><p className="muted">เลือก Node ก่อน แล้วเลือกที่เก็บ Disk และกลุ่ม VM ส่วน Template ตั้งค่าในแท็บ Template</p></div>
           <div className="fields setup-resource-fields">
-            <label><span className="field-title">เครื่องแม่ข่าย (Node)<HelpTip label="เกี่ยวกับ Node">{resourceHelp.node}</HelpTip></span><ResourcePicker id="setup-node" label="Node" value={values.node} options={knownNodes.map(node=>({value:node,label:node}))} pattern="[A-Za-z0-9_.-]{1,63}" disabled={busy} onChange={value=>field("node",value)} onCommit={value=>{
+            <label><span className="field-title">เครื่องแม่ข่าย (Node)<HelpTip label="เกี่ยวกับ Node">{resourceHelp.node}</HelpTip></span><ResourcePicker id="setup-node" label="Node" value={values.node} options={knownNodes.map(node=>({value:node,label:node}))} pattern="[A-Za-z0-9_.-]{1,63}" placeholder="pve" disabled={busy} onChange={value=>field("node",value)} onCommit={value=>{
               const node=value.trim();if(!node||!/^([A-Za-z0-9_.-]{1,63})$/.test(node))return;
               if(node===selectedNode.current){if(!resources&&!discovering)void discover({...values,node},false);return;}
               selectedNode.current=node;selectResource("node",node);
