@@ -79,6 +79,7 @@ function App() {
   const [tab, setTab] = useState(()=>loadView()?.tab??"overview");
   useEffect(()=>{if(token&&sessionReady)saveView(tab,settingsSection);},[token,sessionReady,tab,settingsSection]);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [requestError, setRequestError] = useState("");
   // Templates users may request now (verified and enabled), loaded with the form.
   const [offered, setOffered] = useState<Pick<Template,"id"|"name"|"description"|"min_disk_gb">[] | null>(null);
   const [templateId, setTemplateId] = useState<number | null>(null);
@@ -261,17 +262,21 @@ function App() {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    if(["cpu","ram","disk"].some(k=>!/^\d+$/.test(String(data.get(k)??"").trim()))){setError("vCPU, RAM และ Disk ต้องเป็นจำนวนเต็มเท่านั้น");return;}
-    if(vmAuthMethod==="password"&&!passwordValid(String(data.get("vm_password")??""),12)){setError("กรุณาตั้งรหัสผ่านให้ครบตาม checklist ทุกข้อ");return;}
+    // Problems show beside the submit button and focus the field; the page-top alert is off-screen here.
+    const stop=(message:string,field:string)=>{setRequestError(message);form.querySelector<HTMLElement>(`[name="${field}"]`)?.focus();};
+    setRequestError("");
+    const notWhole=["cpu","ram","disk"].find(k=>!/^\d+$/.test(String(data.get(k)??"").trim()));
+    if(notWhole){stop("vCPU, RAM และ Disk ต้องเป็นจำนวนเต็มเท่านั้น",notWhole);return;}
+    if(vmAuthMethod==="password"&&!passwordValid(String(data.get("vm_password")??""),12)){stop("รหัสผ่าน VM ยังไม่ครบตาม checklist ทุกข้อ","vm_password");return;}
     if (
       vmAuthMethod === "password" &&
       data.get("vm_password") !== data.get("vm_password_confirm")
     ) {
-      setError("รหัสผ่าน VM และการยืนยันไม่ตรงกัน");
+      stop("รหัสผ่าน VM และการยืนยันไม่ตรงกัน","vm_password_confirm");
       return;
     }
     await act(async () => {
-      await api("/vm-requests", {
+      try{await api("/vm-requests", {
         request_reason: String(data.get("request_reason")??"").trim(),
         hostname: data.get("hostname"),
         cpu: Number(data.get("cpu")),
@@ -284,7 +289,7 @@ function App() {
         ssh_key: vmAuthMethod === "ssh_key" ? data.get("ssh_key") : undefined,
         vm_password:
           vmAuthMethod === "password" ? data.get("vm_password") : undefined,
-      });
+      });}catch(e){setRequestError(explainError(e));return;}
       form.reset();
       setDraft(emptyDraft);
       setVmAuthMethod("password");
@@ -623,7 +628,7 @@ function App() {
               <div className="request-grid">
                 <section className="panel">
                   <h2>ขอสร้าง Virtual machine</h2>
-                  <form autoComplete="off" data-form-type="other" onSubmit={requestVM} onInput={e=>{const form=e.currentTarget;const read=(name:string)=>Number((form.elements.namedItem(name) as HTMLInputElement|null)?.value)||0;setDraft({cpu:read("cpu"),ram:read("ram"),disk:read("disk")});}} onReset={()=>setDraft(emptyDraft)}>
+                  <form autoComplete="off" data-form-type="other" onSubmit={requestVM} onInput={e=>{setRequestError("");const form=e.currentTarget;const read=(name:string)=>Number((form.elements.namedItem(name) as HTMLInputElement|null)?.value)||0;setDraft({cpu:read("cpu"),ram:read("ram"),disk:read("disk")});}} onReset={()=>setDraft(emptyDraft)}>
                     <div className="template-choice">
                       <label htmlFor="vm-template" className="field-title">ระบบปฏิบัติการ (Template)</label>
                       {offered===null?<p className="muted">กำลังโหลด Template…</p>:!offered.length?<p className="alert warning">ยังไม่มี Template ที่เปิดให้ขอ กรุณาติดต่อผู้ดูแล</p>:<>
@@ -638,7 +643,7 @@ function App() {
                       <span className="field-title">Hostname<HelpTip id="hostname-format-help" label="รูปแบบ Hostname">ยาว 1–40 ตัวอักษร เริ่มด้วยตัวพิมพ์เล็ก a–z และใช้ได้เฉพาะ a–z, 0–9 หรือขีดกลาง (-) ไม่เว้นวรรค ไม่ใช้ตัวพิมพ์ใหญ่ จุด หรือขีดล่าง เช่น ubuntu-dev, web01 ตั้งซ้ำกับ VM อื่นได้ ระบบแยกเครื่องด้วย VMID</HelpTip></span>
                       <input id="vm-hostname" aria-label="Hostname" aria-describedby="hostname-format-help"
                         name="hostname"
-                        placeholder="ubuntu-dev"
+                        placeholder="เช่น ubuntu-dev"
                         pattern={"[a-z][a-z0-9\\-]{0,39}"}
                         required
                         maxLength={40}
@@ -652,7 +657,7 @@ function App() {
                           {...wholeNumber}
                           min={1}
                           max={32}
-                          placeholder="2"
+                          placeholder="เช่น 2"
                           required
                         />
                       </label>
@@ -663,7 +668,7 @@ function App() {
                           {...wholeNumber}
                           min={512}
                           max={131072}
-                          placeholder="2048"
+                          placeholder="เช่น 2048"
                           required
                         />
                       </label>
@@ -674,7 +679,7 @@ function App() {
                           {...wholeNumber}
                           min={chosenTemplate?.min_disk_gb??1}
                           max={2048}
-                          placeholder={String(Math.max(chosenTemplate?.min_disk_gb??10,10))}
+                          placeholder={`เช่น ${Math.max(chosenTemplate?.min_disk_gb??10,10)}`}
                           required
                         />
                       </label>
@@ -683,7 +688,7 @@ function App() {
                       <span className="field-title">VM username<HelpTip label="ข้อกำหนด VM username">ไม่อนุญาต root หรือบัญชีระบบ</HelpTip></span>
                       <input id="vm-guest-username" aria-label="VM username"
                         name="guest_username"
-                        placeholder="ubuntu"
+                        placeholder="เช่น ubuntu"
                         required
                         minLength={3}
                         maxLength={32}
@@ -721,6 +726,7 @@ function App() {
 
                     <label><span>เหตุผลที่ขอสร้าง VM <span className="required-note">(จำเป็น)</span></span><textarea name="request_reason" required minLength={3} maxLength={1000} placeholder="เช่น ใช้พัฒนาและทดสอบระบบงานของหน่วยงาน"/></label>
                     {dashboard&&quotaShortfall(dashboard,draft).some(row=>row.over)&&<p className="quota-inline" role="alert">เกินโควตา ส่งคำขอไม่ได้ ดูการ์ดสีแดงด้านบน แล้วลดค่าที่ขอ หรือขอผู้ดูแลเพิ่มโควตา</p>}
+                    {requestError&&<p className="alert error" role="alert">{requestError}</p>}
                     <button
                       className="primary"
                       disabled={busy||!chosenTemplate||(!!dashboard&&quotaShortfall(dashboard,draft).some(row=>row.over))}
