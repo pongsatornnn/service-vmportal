@@ -265,6 +265,7 @@ function App() {
     // Problems show beside the submit button and focus the field; the page-top alert is off-screen here.
     const stop=(message:string,field:string)=>{setRequestError(message);form.querySelector<HTMLElement>(`[name="${field}"]`)?.focus();};
     setRequestError("");
+    if(!chosenTemplate){stop("กรุณาเลือก Template ก่อนส่งคำขอ","template");return;}
     const notWhole=["cpu","ram","disk"].find(k=>!/^\d+$/.test(String(data.get(k)??"").trim()));
     if(notWhole){stop("vCPU, RAM และ Disk ต้องเป็นจำนวนเต็มเท่านั้น",notWhole);return;}
     if(vmAuthMethod==="password"&&!passwordValid(String(data.get("vm_password")??""),12)){stop("รหัสผ่าน VM ยังไม่ครบตาม checklist ทุกข้อ","vm_password");return;}
@@ -729,7 +730,7 @@ function App() {
                     {requestError&&<p className="alert error" role="alert">{requestError}</p>}
                     <button
                       className="primary"
-                      disabled={busy||!chosenTemplate||(!!dashboard&&quotaShortfall(dashboard,draft).some(row=>row.over))}
+                      disabled={busy||!offered?.length||(!!dashboard&&quotaShortfall(dashboard,draft).some(row=>row.over))}
                     >
                       ส่งคำขออนุมัติ
                     </button>
