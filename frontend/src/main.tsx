@@ -265,7 +265,9 @@ function App() {
     // Problems show beside the submit button and focus the field; the page-top alert is off-screen here.
     const stop=(message:string,field:string)=>{setRequestError(message);form.querySelector<HTMLElement>(`[name="${field}"]`)?.focus();};
     setRequestError("");
-    if(!chosenTemplate){stop("กรุณาเลือก Template ก่อนส่งคำขอ","template");return;}
+    // Read the template from the form itself; state can lag a re-render behind the dropdown.
+    const template=offered?.find(t=>t.id===Number(data.get("template")));
+    if(!template){stop("กรุณาเลือก Template ก่อนส่งคำขอ","template");return;}
     const notWhole=["cpu","ram","disk"].find(k=>!/^\d+$/.test(String(data.get(k)??"").trim()));
     if(notWhole){stop("vCPU, RAM และ Disk ต้องเป็นจำนวนเต็มเท่านั้น",notWhole);return;}
     if(vmAuthMethod==="password"&&!passwordValid(String(data.get("vm_password")??""),12)){stop("รหัสผ่าน VM ยังไม่ครบตาม checklist ทุกข้อ","vm_password");return;}
@@ -285,7 +287,7 @@ function App() {
         disk: Number(data.get("disk")),
         guest_username: data.get("guest_username"),
         ssh_password_login: false,
-        template_id: templateId ?? undefined,
+        template_id: template.id,
         auth_method: vmAuthMethod,
         ssh_key: vmAuthMethod === "ssh_key" ? data.get("ssh_key") : undefined,
         vm_password:
@@ -633,7 +635,7 @@ function App() {
                     <div className="template-choice">
                       <label htmlFor="vm-template" className="field-title">ระบบปฏิบัติการ (Template)</label>
                       {offered===null?<p className="muted">กำลังโหลด Template…</p>:!offered.length?<p className="alert warning">ยังไม่มี Template ที่เปิดให้ขอ กรุณาติดต่อผู้ดูแล</p>:<>
-                        <select id="vm-template" name="template" required value={templateId??""} onChange={e=>chooseTemplate(Number(e.target.value))}>
+                        <select id="vm-template" name="template" required value={templateId??""} onInput={e=>chooseTemplate(Number(e.currentTarget.value))} onChange={e=>{if(e.target.value)chooseTemplate(Number(e.target.value));}}>
                           <option value="" disabled>เลือก Template</option>
                           {offered.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
