@@ -113,16 +113,6 @@ class VMRequest(Base):
 
 class VM(Base):
     __tablename__ = "vms"
-    __table_args__ = (
-        # A hostname is released once its VM is deleted; history keeps the old row.
-        Index(
-            "uq_vms_live_hostname",
-            "hostname",
-            unique=True,
-            postgresql_where=text("status != 'deleted'"),
-            sqlite_where=text("status != 'deleted'"),
-        ),
-    )
     retention_since: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), index=True
     )

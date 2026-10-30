@@ -635,7 +635,7 @@ function App() {
                       </>}
                     </div>
                     <label htmlFor="vm-hostname">
-                      <span className="field-title">Hostname<HelpTip id="hostname-format-help" label="รูปแบบ Hostname">ยาว 1–40 ตัวอักษร เริ่มด้วยตัวพิมพ์เล็ก a–z และใช้ได้เฉพาะ a–z, 0–9 หรือขีดกลาง (-) ไม่เว้นวรรค ไม่ใช้ตัวพิมพ์ใหญ่ จุด หรือขีดล่าง เช่น ubuntu-dev, web01 เลือกชื่อที่ยังไม่ถูกใช้ในระบบ</HelpTip></span>
+                      <span className="field-title">Hostname<HelpTip id="hostname-format-help" label="รูปแบบ Hostname">ยาว 1–40 ตัวอักษร เริ่มด้วยตัวพิมพ์เล็ก a–z และใช้ได้เฉพาะ a–z, 0–9 หรือขีดกลาง (-) ไม่เว้นวรรค ไม่ใช้ตัวพิมพ์ใหญ่ จุด หรือขีดล่าง เช่น ubuntu-dev, web01 ตั้งซ้ำกับ VM อื่นได้ ระบบแยกเครื่องด้วย VMID</HelpTip></span>
                       <input id="vm-hostname" aria-label="Hostname" aria-describedby="hostname-format-help"
                         name="hostname"
                         placeholder="ubuntu-dev"

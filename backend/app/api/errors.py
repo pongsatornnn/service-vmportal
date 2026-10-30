@@ -117,7 +117,6 @@ MESSAGES = {
     "Template has pending requests; decide them before deleting": "Template นี้มีคำขอรออนุมัติอยู่ กรุณาอนุมัติหรือปฏิเสธคำขอเหล่านั้นก่อนลบ",
     "Template check failed; check the connection and VMID": "ตรวจสอบ Template ไม่สำเร็จ กรุณาตรวจการเชื่อมต่อและ VMID",
     "Too many pending requests": "มีคำขอค้างรออนุมัติมากเกินไป กรุณารอให้ผู้ดูแลพิจารณาก่อน",
-    "Hostname already exists; choose a different hostname": "ชื่อ VM นี้ถูกใช้งานแล้ว กรุณาเลือกชื่อใหม่",
     "Request already decided": "รายการนี้ถูกพิจารณาแล้ว กรุณาโหลดข้อมูลล่าสุด",
     "Account already decided": "บัญชีนี้ถูกพิจารณาแล้ว กรุณาโหลดข้อมูลล่าสุด",
     "Owner not approved": "เจ้าของ VM ยังไม่ได้รับอนุมัติหรือถูกระงับ",

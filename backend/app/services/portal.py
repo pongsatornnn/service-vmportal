@@ -146,12 +146,7 @@ class PortalService:
             ).items():
                 if usage[name] + amount > getattr(owner, "quota_" + name):
                     raise HTTPException(409, "Quota exceeded: " + name)
-            if self.db.scalar(
-                select(VM.id).where(VM.hostname == req.hostname, VM.status != "deleted")
-            ):
-                raise HTTPException(
-                    409, "Hostname already exists; choose a different hostname"
-                )
+            # VMID identifies the machine; hostnames may repeat across VMs.
             vm = VM(
                 owner_id=owner.id,
                 provider=config.proxmox_mode,
@@ -163,9 +158,7 @@ class PortalService:
                 self.db.flush()
             except IntegrityError:
                 self.db.rollback()
-                raise HTTPException(
-                    409, "Hostname already exists; choose a different hostname"
-                ) from None
+                raise HTTPException(409, "Request already decided") from None
             self.db.add(Job(vm_id=vm.id, owner_id=owner.id, operation="provision"))
         if not decision.approve:
             req.password_encrypted = None
